@@ -51,6 +51,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_finish()
 
 func _run() -> void:
+	# let fonts/theme/layout settle one frame before measuring letter positions —
+	# measuring at frame 0 occasionally raced layout and scrambled the splash
+	# (rare, random, no errors: the classic symptom of a first-frame measure)
+	await get_tree().process_frame
+	if _done: return
 	var vw: float = size.x if size.x > 0 else 1280.0
 	var vh: float = size.y if size.y > 0 else 720.0
 	var cx := vw * 0.5

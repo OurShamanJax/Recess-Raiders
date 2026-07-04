@@ -114,9 +114,22 @@ func apply_runtime() -> void:
 
 ## Commit a batch of pending changes (from the menu) then persist + apply.
 func apply_pending(pending: Dictionary) -> void:
-	for key in pending.keys():
+	var p := pending.duplicate()
+	# PRESET WINS: the settings panel pre-populates pending with every CURRENT
+	# value when it opens, so applying a new preset then iterating the dict let
+	# those stale values overwrite the preset's batch right back (the "nothing
+	# changes" bug). If the preset changed, apply it and DROP the granular video
+	# keys from this commit — the preset is what the user asked for.
+	if p.has("graphics_preset") and int(p["graphics_preset"]) != graphics_preset:
+		graphics_preset = int(p["graphics_preset"])   # setter batch-writes granulars
+		for gk in ["grass_quality", "shadow_quality", "gi_quality", "reflections",
+				"ambient_occlusion", "indirect_light", "bloom", "anti_aliasing",
+				"render_scale"]:
+			p.erase(gk)
+		p.erase("graphics_preset")
+	for key in p.keys():
 		if key in self:
-			set(key, pending[key])
+			set(key, p[key])
 	save_settings()
 	apply_runtime()
 
@@ -126,8 +139,8 @@ func apply_pending(pending: Dictionary) -> void:
 ## (the defaults). Does NOT save/emit — the settings Apply flow does that.
 func _batch_preset(idx: int) -> void:
 	if idx == 0:
-		grass_quality = 1
-		shadow_quality = 1
+		grass_quality = 0
+		shadow_quality = 0
 		gi_quality = 0
 		reflections = false
 		ambient_occlusion = false
@@ -157,3 +170,7 @@ func apply_runtime_video() -> void:
 	RenderingServer.directional_shadow_atlas_set_size(atlas, true)
 	var filt := RenderingServer.SHADOW_QUALITY_SOFT_HIGH if shadow_quality >= 2 else RenderingServer.SHADOW_QUALITY_SOFT_LOW
 	RenderingServer.directional_soft_shadow_filter_set_quality(filt)
+	# shadow quality 0 = shadows fully OFF (the Performance preset's biggest win
+	# after render scale). Toggles every directional light in the scene.
+	for l in root.find_children("*", "DirectionalLight3D", true, false):
+		(l as DirectionalLight3D).shadow_enabled = shadow_quality > 0

@@ -50,7 +50,7 @@ func _resolve_catches() -> void:
 		var receiver: Node = b.intended_catcher
 		var receiver_is_player: bool = receiver != null and is_instance_valid(receiver) and receiver.is_user
 		var contenders: Array = []
-		for a in get_tree().get_nodes_in_group("actors"):
+		for a in GameState.actors():
 			if a.is_tagged() or a.has_target() or a == b.thrower:
 				continue
 			# RECEIVER RULE: when this throw has an intended catcher, the proximity

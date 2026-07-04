@@ -262,7 +262,14 @@ func open_settings_standalone() -> void:
 	$Pause.visible = false
 
 func _open_settings() -> void:
-	# load every setting into the pending dict, then reflect into the controls.
+	_load_settings_into_controls()
+	$Pause.visible = false
+	$SettingsPanel.visible = true
+
+## Read every setting into the pending dict and reflect it into the controls.
+## Called when the panel opens AND after Apply (so a preset's batch-write is
+## immediately visible on the granular controls).
+func _load_settings_into_controls() -> void:
 	var keys := [
 		"sprint_fx", "show_nametags", "mouse_sensitivity",
 		"fullscreen", "graphics_preset", "grass_quality", "shadow_quality", "gi_quality",
@@ -283,11 +290,12 @@ func _open_settings() -> void:
 			(ctl as HSlider).value = val
 		elif ctl is OptionButton:
 			(ctl as OptionButton).selected = int(val)
-	$Pause.visible = false
-	$SettingsPanel.visible = true
 
 func _apply() -> void:
 	Settings.apply_pending(_pending)
+	# re-read everything back into the controls so a preset's batch is visible
+	# immediately (grass/shadows/GI flip to the preset values on screen)
+	_load_settings_into_controls()
 	if _apply_btn != null:
 		_apply_btn.text = "Applied ✓"
 		await get_tree().create_timer(1.0).timeout

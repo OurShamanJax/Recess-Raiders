@@ -184,7 +184,11 @@ func _process(delta: float) -> void:
 		return
 	if target == null:
 		return
-	var p: Vector3 = target.global_position
+	# With physics interpolation ON, bodies RENDER at an interpolated position
+	# between physics ticks, but global_position returns the raw physics value.
+	# Following the raw value made the camera and the rendered body disagree at
+	# speed — the sprint "rubberband" jitter. Follow what's actually on screen.
+	var p: Vector3 = target.get_global_transform_interpolated().origin if target is Node3D else target.global_position
 	_update_fov(delta)
 	match GameState.cam_mode:
 		"fp":     _update_fp(p)

@@ -86,6 +86,7 @@ var _has_sit := false
 var _seated := false
 # Optional throw (baseball_pitching clip): one-shot pitch state, per-model.
 var _has_throw := false
+var _sit_idle_key := ""   # randomly picked per-build from the def's sit_idle keys
 # scale lock (per-game kid heights must survive whatever touches model scale)
 var _model_inst: Node3D = null
 var _locked_scale := Vector3.ONE
@@ -258,6 +259,14 @@ func _harvest_clips() -> void:
 						# per-def end cut: drop dead tail (long follow-through holds)
 						if _def != null and _def.clip_cuts.has(key):
 							clip.length = minf(clip.length, float(_def.clip_cuts[key]))
+						# SCALE-TRACK GUARD: these rigs never legitimately animate
+						# bone scale, but Meshy exports sometimes bake constants
+						# into it (the girls' walk clips scaled Hips 1.176 — the
+						# "shrink/enlarge on movement" bug). Strip every scale
+						# track so no clip can ever resize a kid again.
+						for ti in range(clip.get_track_count() - 1, -1, -1):
+							if clip.track_get_type(ti) == Animation.TYPE_SCALE_3D:
+								clip.remove_track(ti)
 						if lib.has_animation(key):
 							lib.remove_animation(key)
 						lib.add_animation(key, clip)
@@ -401,6 +410,27 @@ func _build_tree(_inst: Node) -> void:
 		var t_stand_loco := AnimationNodeStateMachineTransition.new()
 		t_stand_loco.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
 		sm.add_transition("sit_exit", "locomotion", t_stand_loco)
+
+		# Seated idle: when the sit-down completes, auto-flow into a LOOPING gesture
+		# (thumbs-up, finger-wag, shout...) picked at random per kid from the def's
+		# sit_idle keys — benched kids show personality instead of freezing on the
+		# sit clip's last frame. Standing up works from the idle exactly as from sit.
+		var idle_keys: Array[String] = []
+		for ik in ["sit_idle", "sit_idle_2", "sit_idle_3"]:
+			if _clip_sources.has(ik):
+				idle_keys.append(ik)
+		if not idle_keys.is_empty():
+			_sit_idle_key = idle_keys[randi() % idle_keys.size()]
+			var idle_node := AnimationNodeAnimation.new()
+			idle_node.animation = "rig/" + _sit_idle_key
+			sm.add_node("sit_idle", idle_node, Vector2(520, 330))
+			var t_sit_idle := AnimationNodeStateMachineTransition.new()
+			t_sit_idle.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
+			t_sit_idle.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
+			sm.add_transition("sit", "sit_idle", t_sit_idle)
+			var t_idle_stand := AnimationNodeStateMachineTransition.new()
+			t_idle_stand.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+			sm.add_transition("sit_idle", "sit_exit", t_idle_stand)
 
 
 	# ROOT: a blend tree. The state machine drives the whole body; if this model

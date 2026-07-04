@@ -259,6 +259,7 @@ var _sprinting := false
 # sprint-exhaustion latch: true once stamina hits 0, cleared only after stamina
 # recovers past SPRINT_RECOVER_FRAC — stops walk<->sprint oscillation at empty
 var _gassed := false
+var _was_on_floor := true   # for landing detection (air -> floor transition)
 # pending animated-throw release: play_throw winds up, then the ball leaves the
 # hand at the anim's release frame (THROW_ANIM_RELEASE_DELAY after start)
 var _pending_release_timer := 0.0
@@ -525,7 +526,7 @@ func _physics_process(delta: float) -> void:
 			tt.on_tagged()
 			if is_user:
 				GameState.bump_stat("tags_made")
-			_tag_cooldown = 0.4
+			_tag_cooldown = 0.25
 	if it.want_revive:
 		var rt := best_revive_target()
 		if rt != null:
@@ -606,7 +607,13 @@ func _physics_process(delta: float) -> void:
 	var t_h := 1.0 - exp(-accel_rate * delta)
 	_move_vel = _move_vel.lerp(target_h, t_h)
 	velocity = Vector3(_move_vel.x, _y_vel, _move_vel.y)
+	var fall_speed := maxf(-velocity.y, 0.0)   # capture BEFORE landing zeroes it
 	move_and_slide()
+	# landing detection: fire once on the air->floor transition with real impact
+	# (jump landings, drops) — Juice puffs dust, and it's a hook for landing SFX
+	if is_on_floor() and not _was_on_floor and fall_speed > 10.0:
+		Events.actor_landed.emit(self, fall_speed)
+	_was_on_floor = is_on_floor()
 	# Track the last spot this actor stood safely on the floor. If they ever fall
 	# through the world, we restore HERE — not to spawn. Teleporting to spawn was
 	# the sprint "slingshot across the map": sprint over a terrain seam → fall
@@ -663,7 +670,7 @@ func _physics_process(delta: float) -> void:
 		var npc_target := _npc_tag_target()
 		if npc_target != null:
 			npc_target.on_tagged()
-			_tag_cooldown = 0.4
+			_tag_cooldown = 0.25
 
 	# --- drive the rig (presentation) ----------------------------------------
 	if rig != null:

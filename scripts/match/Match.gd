@@ -186,7 +186,7 @@ func restart() -> void:
 	for c in get_tree().get_nodes_in_group("carryables"):
 		c.restore_origin()
 	# reset every actor to spawn, clear tags/carry/stamina
-	for a in get_tree().get_nodes_in_group("actors"):
+	for a in GameState.actors():
 		if a.carried != null:
 			a.carried = null
 		a._return_to_spawn()

@@ -14,7 +14,7 @@ const GRAVITY := 45.0
 const STAMINA_MAX := 100.0
 const SPRINT_DRAIN := 42.0
 const SPRINT_RECOVER_FRAC := 0.25  # once gassed (0 stamina), must recover to 25% before sprinting again
-const TAG_HEIGHT_TOL := 3.5        # can't tag someone this far above/below you — jumping clears a tag
+const TAG_HEIGHT_TOL := 3.0        # can't tag someone this far above/below you (jump apex is 3.6, so a jump now dodges through most of its arc)
 const REVIVE_TAG_GRACE := 1.2      # seconds of untaggable after a revive (stops tag-camping)  # once gassed (0 stamina), must recover to 25% before sprinting again
 const WALK_REGEN := 14.0            # slower on-the-move recovery, so pods matter
 const POD_REGEN := 72.0
@@ -22,7 +22,7 @@ const POD_REGEN := 72.0
 # Interaction radii
 const PICKUP_RADIUS := 6.0          # must be within this to grab a goal cone/ball
 const LOOK_DOT := 0.55              # how directly you must face a target to grab (dot of facing vs to-target)
-const TAG_RADIUS := 5.0             # must be genuinely close to tag (was too generous)
+const TAG_RADIUS := 6.5             # contact-tag reach: ~arm's length beyond touching capsules (5.0 felt unresponsive at sprint closing speeds)
 const PLAYER_ACTION_RANGE := 9.0    # range for the player's E-to-tag / R-to-revive prompts
 const CATCH_RADIUS := 4.0
 const PASS_RANGE := 60.0

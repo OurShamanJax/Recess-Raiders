@@ -16,7 +16,11 @@ clip_paths = {
 "run_03": "res://assets/character/indianboy/indianboy_run_03.glb",
 "run_fast": "res://assets/character/indianboy/indianboy_run_fast.glb",
 "walk": "res://assets/character/indianboy/indianboy_walk.glb",
-"throw": "res://assets/character/indianboy/indianboy_throw.glb"
+"throw": "res://assets/character/indianboy/indianboy_throw.glb",
+"jump": "res://assets/character/indianboy/indianboy_jump.glb",
+"sit": "res://assets/character/indianboy/indianboy_sit.glb",
+"sit_exit": "res://assets/character/indianboy/indianboy_stand.glb",
+"sit_idle": "res://assets/character/indianboy/indianboy_sitidle.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
@@ -26,7 +30,11 @@ clip_anim_names = {
 "run_03": "Armature|Run_03|baselayer",
 "run_fast": "Armature|RunFast|baselayer",
 "walk": "Armature|walking_man|baselayer",
-"throw": "Armature|baseball_pitching|baselayer"
+"throw": "Armature|baseball_pitching|baselayer",
+"jump": "Armature|Regular_Jump|baselayer",
+"sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
+"sit_exit": "Armature|Sit_to_Stand_Transition_M|baselayer",
+"sit_idle": "Armature|Sit_Thumbs_Up_Right|baselayer"
 }
 model_scale = 2.7
 scale_mult = 1.06
@@ -35,8 +43,14 @@ has_run_variants = true
 run_variant_keys = PackedStringArray("run", "run_fast", "run_03")
 
 clip_trims = {
-"throw": 1.25
+"throw": 1.25,
+"jump": 0.5,
+"sit": 0.1,
+"sit_exit": 0.55
 }
 clip_cuts = {
 "throw": 1.1
 }
+has_jump = true
+sit_raise = 1.0
+sit_forward = 1.8

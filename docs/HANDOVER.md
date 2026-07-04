@@ -308,6 +308,54 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
 
+**Height pulse on movement + splash race + tag responsiveness.** (1) HEIGHT PULSE: both girls' WALK clips
+carried a constant Hips SCALE of 1.176 (Meshy artifact) — idle 1.0, blend into walk = grow 18%, blend to run =
+shrink. Node-level scale lock could not see it (bone scale). Fixed: channels neutralized to 1.0 in both walk
+GLBs AND a harvest-level guard now strips EVERY scale track from every harvested clip (these rigs never
+legitimately animate bone scale) — this class of bug is now impossible. (2) SPLASH: rare random scramble = a
+first-frame layout race; _run now awaits one process_frame before measuring letter positions. (3) TAGGING:
+TAG_RADIUS 5.0->6.5 (contact reach was ~2.6 units beyond touching capsules — frames-wide window at sprint
+closing speeds), TAG_HEIGHT_TOL 3.5->3.0 (jump apex is 3.6; dodge now works through most of the arc, ground
+tags unaffected), tag cooldown 0.4->0.25 both sites (player + NPC share the tuning; cooldown fires only on
+successful tags, whiffs never locked out).
+
+**SPRINT RUBBERBAND — TRUE ROOT CAUSE (baked root motion) + juice pass + caching cleanup.** The persistent
+per-character sprint rubberband was IN THE CLIPS: blueasiangirl run_fast had +248 units and bluegirl run_fast
++418 units of baked Hips Z drift per loop — the body runs forward then SNAPS BACK at the loop point. Only the
+two girls' run_fast clips were dirty (all other locomotion clips verified in-place), and variant kids pick
+run/run_fast randomly per spawn = why it was random/per-character and survived three real-but-different
+movement fixes. FIX: linear de-drift baked into both GLBs (progressive (t/T)*drift subtracted from Hips X/Z,
+bob preserved, verified 0.0 drift). RUN THE DRIFT CHECK on every future locomotion import (hips first->last
+key delta; >3 units = bad). JUICE: Events.actor_landed(actor, impact) emitted on air->floor with fall speed
+captured pre-move_and_slide; Juice adds hit_pause(0.05) + orange burst on near-player tags, dust puff on
+landings (impact>12), CPUParticles3D one-shot _burst helper (self-freeing, low-end safe). CACHING: GameState
+frame-stamped actors() cache already existed and AI/Actor used it; converted the 3 remaining direct scans
+(BallManager/SafeZoneManager/Match). DEFERRED with reasons: Actor decomposition (risky blind, needs its own
+session with a plan), rebindable keys (own UI session), FatBoy strafe (NO strafe clips exist in any pack —
+user must generate via Meshy first).
+
+**Triple fix: preset stomp / sprint jitter / sit-idle pop.** (1) PRESET: the settings panel PRE-POPULATES
+_pending with every current value on open; Apply then let those stale values overwrite the preset batch =
+"nothing changes". apply_pending now detects a preset CHANGE, applies it, and DROPS the granular video keys
+from that commit (preset wins). Performance = LOWEST (grass 0/off, shadow 0/off via DirectionalLight
+shadow_enabled toggle in apply_runtime_video, gi 0, all fx off, 0.75 scale). PauseMenu refreshes controls
+post-Apply (_load_settings_into_controls, extracted from _open_settings). (2) SPRINT rubberband (3rd
+mechanism): physics interpolation renders bodies INTERPOLATED but camera followed raw physics
+global_position -> camera/body desync jitter at speed, varying with each model run-bob (why it seemed
+per-character/random). CameraRig now follows target.get_global_transform_interpolated().origin. (3) SIT-IDLE
+POP: sit clips END at hips z=-49 (root motion walks back onto the seat) but idle clips play at z=+9 -> 58-unit
+forward pop. Baked (sit_end - idle_mean) into every idle GLB Hips translation accessor (sway preserved,
+min/max fixed, verified 0.0000 diff). Re-run this bake for ANY future sit-idle import.
+
+**Smart Boy completion + SIT-IDLE system.** Imported (skin-kept strip) indianboy jump/sit/sit_exit/sit_idle
++ asianboy 3 sit-idles. Measured: IND jump takeoff 0.57 (trim 0.5), sit onset 0.1 (trim 0.1), sit_exit onset
+0.6 (trim 0.55). NOTE: IND sit/sit_exit motion runs nearly full length (4.5/6.0s of 4.8/6.2) — NOT dead tail,
+just leisurely clips; no cuts (cutting would freeze mid-motion). Long stand is blended off by the existing
+1.0s _stand_lock -> locomotion self-heal (same as other models). SIT-IDLE: def keys sit_idle/_2/_3; rig picks
+one at random per BUILD, adds looping "sit_idle" state, sit->sit_idle AT_END AUTO, sit_idle->sit_exit
+IMMEDIATE. Only exact keys sit/sit_exit are one-shot, so sit_idle* loops automatically. indianboy sit_raise
+1.0 / sit_forward 1.8 (BLIND — tune from playtest).
+
 **Kid-height SCALE LOCK.** User report: per-game heights apply at spawn but revert to default when running
 starts (all actors). Static hunt came up empty: clips have NO non-joint channels (verified via pygltflib),
 facing uses rotation.y only, no runtime scale writers anywhere. Suspect = animation-system internals post

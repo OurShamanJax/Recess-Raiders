@@ -18,8 +18,9 @@ tagged. **Steal their entire stash to win.**
 - **Skill-based throwing** — a timing meter decides whether your throw flies true
   or fumbles loose. Lock onto a teammate to fire a guided pass.
 - **Smart tagging** — the game tags who you're *looking at*, not just whoever's
-  closest. Jumping clears a tag attempt. Freshly revived kids get a moment of
-  protection.
+  closest. Jumping over a tagger dodges the tag. Freshly revived kids get a moment
+  of protection. Tags land with a punchy hit-pause and impact burst; jumps kick up
+  dust on landing.
 - **Stamina strategy** — sprint hard, gas out, recover in safe-zone pods (which
   eject loot-carriers — no camping with the goods).
 - **An animated splash intro** with a welcome voice-over, a living menu backdrop,

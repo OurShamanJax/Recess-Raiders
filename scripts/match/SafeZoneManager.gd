@@ -51,7 +51,7 @@ func _count_in_zone(zone_idx: int) -> int:
 func _physics_process(delta: float) -> void:
 	if GameState.phase != GameState.Phase.PLAYING:
 		return
-	for a in get_tree().get_nodes_in_group("actors"):
+	for a in GameState.actors():
 		_update_actor(a, delta)
 		_enforce_enemy_barrier(a)
 
