@@ -308,6 +308,57 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
 
+**Kid-height SCALE LOCK.** User report: per-game heights apply at spawn but revert to default when running
+starts (all actors). Static hunt came up empty: clips have NO non-joint channels (verified via pygltflib),
+facing uses rotation.y only, no runtime scale writers anywhere. Suspect = animation-system internals post
+tree-restructure. Mitigation: CharacterRig stores _model_inst + _locked_scale at build; _process re-asserts
+both the model scale and rig scale (Vector3.ONE) every frame, with a ONE-TIME push_warning naming which node
+drifted and from what value — the console warning is the root-cause diagnostic. If the warning ever fires,
+report the values; if heights stay put WITHOUT the warning, the bug was perceptual (FOV) or elsewhere.
+
+**Settings live-apply fix + signal-bus convention.** Every Events signal needs @warning_ignore("unused_signal")
+(the bus emits from other scripts; convention documented in the file header — forgetting it = UNUSED_SIGNAL
+warning at boot). Settings WERE mostly live (apply_runtime ends with settings_applied.emit -> render scale,
+shadow atlas, grass, TAA, fullscreen, volumes all fire) — but the WorldEnvironment effects (SSAO/SDFGI/SSIL/
+SSR/glow) were BUILD-TIME ONLY, so the most visible preset changes only appeared next match. Environment now
+stores _env_res + _apply_env_quality() on settings_applied (mirrors build values in _setup_sky_and_fog — keep
+in sync). Toggling the Performance preset is now instantly visible (GI/SSAO/bloom pop off live).
+
+**Main Menu button (pause -> title).** PauseMenu builds a "Main Menu" button IN CODE at _ready (scene file
+untouched), inserted between SettingsBtn and Exit (custom_minimum_size 220x48 to match). _to_main_menu():
+unpause + hide, then Events.main_menu_requested -> Main -> Match.return_to_menu() (which already existed,
+doc-commented for this exact button, and does GameState.reset + teardown + begin_demo + returned_to_menu
+emit; MenuOverlay re-shows LANDING, HUD hides, mouse frees). New match via Start re-shows HUD in _on_join.
+
+**Graphics Quality Preset (Performance/Quality).** Settings.graphics_preset (int, setter batch-writes the
+granular video vars via _batch_preset; load order in load_settings puts preset FIRST so saved granular values
+survive restarts). NEW Settings.render_scale (root viewport scaling_3d_scale, 0.75 on Performance) +
+apply_runtime_video() (also drives directional shadow atlas 2048/4096 + soft-filter quality via
+RenderingServer — no node lookups). Hooked at boot (call_deferred) + Events.settings_applied. PauseMenu
+Graphics tab has the "Quality Preset" dropdown (uses the existing _add_option/_pending machinery). Environment
+grass now REBUILDS on settings_applied and quality 0 means OFF (used to still draw 8000 blades); low=14000,
+high=38000. docs/BACKLOG.md is now GITIGNORED (internal to-do, not published).
+
+**GODOT VERSION POLICY (mystery of the laptop errors, SOLVED).** The user's laptop runs Godot 4.7; the
+project + main PC are 4.6. The "84 errors" are ONE benign 4.7 deprecation warning x 3 blend points x 28 kids:
+AnimationNodeBlendSpace1D::add_blend_point wants an explicit name in 4.7+ (CharacterRig _build_tree lines
+~329-331). DO NOT add the name argument while the project targets 4.6 — the parameter doesn't exist there and
+the call would fail. The earlier "86 errors on weak hardware" were the same version skew (the Vulkan-driver
+hypothesis was wrong). WHEN THE PROJECT UPGRADES to 4.7+: add explicit names to the three add_blend_point
+calls and re-audit for other deprecations. Until then: run 4.6 on every test machine for apples-to-apples.
+
+**AnimationTree v2: upper-body throw + locomotion speed sync (V1.1).** ROOT RESTRUCTURE — all tree param
+paths changed. Root is now a BlendTree: node "sm" (the whole prior state machine, throw STATE removed) ->
+optional filtered AnimationNodeOneShot "throw_shot" (shot input = "throw_anim"). The OneShot filter is built
+DYNAMICALLY from the harvested rig/throw clip's track paths whose bone is in UPPER_BODY_BONES (Spine02 up +
+arms/head) — legs+Hips stay with locomotion, so pitching overlays a run. play_throw() = set
+parameters/throw_shot/request FIRE (no more _throwing guard/timer, all removed); play_dead ABORTs the shot.
+Locomotion state is itself a BlendTree {bs: BlendSpace1D -> ts: TimeScale}; set_locomotion(ratio, delta,
+speed=-1) drives parameters/sm/locomotion/bs/blend_position + ts/scale = clamp(speed/expected, 0.6, 1.4)
+(expected = WALK at 0.5 blend, lerp to SPRINT at 1.0) — feet track actual velocity, no skating. Actor passes
+Vector2(velocity.x, velocity.z).length(). PATHS NOW: parameters/sm/playback, parameters/sm/locomotion/bs/...,
+parameters/sm/locomotion/ts/scale, parameters/throw_shot/request. Anything touching the tree must use these.
+
 **Boot music glitch + interpolated-camera warning.** The boot DEMO match emits match_started at launch,
 which started menu music at t=0 — then the welcome VO (0.95s) swapped the stream and music resumed after =
 the music->welcome->music cutting glitch. _on_match_music now only QUEUES the track (no play, no whistle)

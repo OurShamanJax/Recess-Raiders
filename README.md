@@ -24,10 +24,14 @@ tagged. **Steal their entire stash to win.**
   eject loot-carriers — no camping with the goods).
 - **An animated splash intro** with a welcome voice-over, a living menu backdrop,
   and a coach patrolling the sidelines.
+- **Runs on modest hardware** — a one-click **Performance preset** (Esc → Settings →
+  Graphics) drops render scale, shadows, grass, and lighting effects for a big FPS
+  boost; **Quality** restores full fidelity. Changes apply live, no restart.
 
 ## How to run it
 
 1. Install **[Godot 4.6](https://godotengine.org/download)** (standard version).
+   *(Godot 4.7 also runs the game but prints harmless deprecation warnings.)*
 2. Open Godot → **Import** → select this folder's `project.godot`.
 3. Let it import once, then press **F5**. Hit **Play**, pick a team and a kid, go.
 
@@ -68,7 +72,7 @@ sneak behind them to flank.
 | Throw / pass | **Left-click** (timing meter!) |
 | Lock-on target | **Tab** |
 | Switch camera | **V** |
-| Pause / settings | **Esc** |
+| Pause / settings | **Esc** (Resume / Settings / Main Menu / Exit) |
 
 ## Tips
 

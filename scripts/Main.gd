@@ -12,6 +12,8 @@ func _ready() -> void:
 	# must be HUD-free — otherwise the background match's "Pass!"/"Tagged Out!"
 	# flashes and score draw over the menu.
 	Events.returned_to_menu.connect(func(): hud.visible = false)
+	# pause menu's "Main Menu" button: hard-stop the match, back to the title
+	Events.main_menu_requested.connect(func(): match_node.return_to_menu())
 	# Live menu background: spin up a bot-vs-bot Raiders match behind the menu,
 	# filmed by the orbiting skycam. Hidden player, no HUD — pure backdrop.
 	_start_demo_background()

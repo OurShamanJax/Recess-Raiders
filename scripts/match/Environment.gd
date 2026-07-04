@@ -564,6 +564,12 @@ func _setup_sky_and_fog() -> void:
 	env.adjustment_saturation = 1.12
 	we.environment = env
 	add_child(we)
+	# keep the env around and RE-APPLY the quality-driven effects whenever settings
+	# change — without this, toggling GI/SSAO/bloom (incl. the Performance preset)
+	# only took effect on the NEXT match, which made the settings feel dead.
+	_env_res = env
+	if not Events.settings_applied.is_connected(_apply_env_quality):
+		Events.settings_applied.connect(_apply_env_quality)
 
 func _build_clouds() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -642,17 +648,23 @@ func _process(delta: float) -> void:
 			c.a = a * float(entry["max_alpha"])
 			mat.albedo_color = c
 
+var _grass: Node = null
+
 func _build_grass() -> void:
-	var g := GrassFieldScript.new()
-	# grass density from the quality setting (0 low, 1 med, 2 high). This makes
-	# the previously-dead grass-quality dropdown actually do something.
+	# rebuildable: quality changes (incl. the Performance preset) re-run this
+	if _grass != null and is_instance_valid(_grass):
+		_grass.queue_free()
+		_grass = null
 	var q: int = Settings.grass_quality if "grass_quality" in Settings else 2
-	match q:
-		0: g.blade_count = 8000
-		1: g.blade_count = 20000
-		_: g.blade_count = 38000
+	if q <= 0:
+		return   # "Off" now actually means off (it used to still draw 8000 blades)
+	var g := GrassFieldScript.new()
+	g.blade_count = 14000 if q == 1 else 38000
 	add_child(g)
 	g.build()
+	_grass = g
+	if not Events.settings_applied.is_connected(_build_grass):
+		Events.settings_applied.connect(_build_grass)
 
 ## How flat the terrain should be at a given world XZ (1 = fully flat/zero
 ## height, 0 = full rolling height). Returns 1.0 inside the field, sidewalk, and
@@ -910,3 +922,19 @@ func _cone(radius: float, height: float, mat: Material) -> MeshInstance3D:
 	mi.mesh = cm
 	mi.material_override = mat
 	return mi
+
+
+var _env_res: Environment = null
+
+## Re-apply the Settings-driven quality switches to the live environment. Mirrors
+## the build-time values in _setup_sky_and_fog — keep the two in sync.
+func _apply_env_quality() -> void:
+	if _env_res == null:
+		return
+	_env_res.ssao_enabled = Settings.ambient_occlusion
+	var gi: int = Settings.gi_quality
+	_env_res.sdfgi_enabled = gi > 0
+	_env_res.sdfgi_cascades = 4 if gi >= 2 else 2
+	_env_res.ssil_enabled = Settings.indirect_light
+	_env_res.ssr_enabled = Settings.reflections
+	_env_res.glow_enabled = Settings.bloom

@@ -24,17 +24,33 @@ var ambient_occlusion := true       # SSAO — cheap, big visual gain, keep on
 var indirect_light := false         # SSIL — costly, off by default
 var bloom := true                   # glow — cheap, keep on
 var anti_aliasing := true           # TAA
+# 3D render resolution scale — THE biggest lever for weak hardware. 1.0 = native;
+# the Performance preset drops it to 0.75 (image upscales to window size).
+var render_scale := 1.0
+# One-click quality preset (0 = Performance, 1 = Quality). Setting it batch-writes
+# the granular video values below; granular edits after that simply diverge.
+var graphics_preset := 1:
+	set(v):
+		graphics_preset = v
+		_batch_preset(v)
 var fov_first_person := 70.0        # FOV in first person (degrees)
 var fov_third_person := 62.0        # FOV in third person (degrees)
 
 func _ready() -> void:
 	load_settings()
 	apply_runtime()
+	# defer: the tree root isn't ready for viewport writes during autoload _ready
+	apply_runtime_video.call_deferred()
+	Events.settings_applied.connect(apply_runtime_video)
 
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
 		return
+	# preset loads FIRST (its setter batch-writes granular values), then the saved
+	# granular values below overwrite that batch — so custom tweaks survive restarts
+	graphics_preset = cfg.get_value("video", "graphics_preset", graphics_preset)
+	render_scale = cfg.get_value("video", "render_scale", render_scale)
 	sprint_fx = cfg.get_value("gameplay", "sprint_fx", sprint_fx)
 	mouse_sensitivity = cfg.get_value("gameplay", "mouse_sensitivity", mouse_sensitivity)
 	show_nametags = cfg.get_value("gameplay", "show_nametags", show_nametags)
@@ -63,6 +79,8 @@ func save_settings() -> void:
 	cfg.set_value("audio", "welcome_volume", welcome_volume)
 	cfg.set_value("audio", "music_volume_menu", music_volume_menu)
 	cfg.set_value("audio", "music_volume_game", music_volume_game)
+	cfg.set_value("video", "graphics_preset", graphics_preset)
+	cfg.set_value("video", "render_scale", render_scale)
 	cfg.set_value("video", "grass_quality", grass_quality)
 	cfg.set_value("video", "shadow_quality", shadow_quality)
 	cfg.set_value("video", "fullscreen", fullscreen)
@@ -101,3 +119,41 @@ func apply_pending(pending: Dictionary) -> void:
 			set(key, pending[key])
 	save_settings()
 	apply_runtime()
+
+
+## Batch-write the granular video settings for a preset. 0 = Performance (weak
+## hardware: no GI/SSAO/AA/bloom, low shadows+grass, 75% render scale), 1 = Quality
+## (the defaults). Does NOT save/emit — the settings Apply flow does that.
+func _batch_preset(idx: int) -> void:
+	if idx == 0:
+		grass_quality = 1
+		shadow_quality = 1
+		gi_quality = 0
+		reflections = false
+		ambient_occlusion = false
+		indirect_light = false
+		bloom = false
+		anti_aliasing = false
+		render_scale = 0.75
+	else:
+		grass_quality = 2
+		shadow_quality = 2
+		gi_quality = 2
+		reflections = false
+		ambient_occlusion = true
+		indirect_light = false
+		bloom = true
+		anti_aliasing = true
+		render_scale = 1.0
+
+## Apply the video values that live OUTSIDE the WorldEnvironment: render scale on
+## the root viewport, and the directional shadow atlas/filter via RenderingServer
+## (no node lookups — works wherever the sun lives). Runs at boot and on every
+## settings apply.
+func apply_runtime_video() -> void:
+	var root := get_tree().root
+	root.scaling_3d_scale = clampf(render_scale, 0.5, 1.0)
+	var atlas := 4096 if shadow_quality >= 2 else 2048
+	RenderingServer.directional_shadow_atlas_set_size(atlas, true)
+	var filt := RenderingServer.SHADOW_QUALITY_SOFT_HIGH if shadow_quality >= 2 else RenderingServer.SHADOW_QUALITY_SOFT_LOW
+	RenderingServer.directional_soft_shadow_filter_set_quality(filt)

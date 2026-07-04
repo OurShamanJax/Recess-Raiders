@@ -23,3 +23,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 strip_clip.py
+
+# Internal to-do / roadmap — documented locally, NOT published to GitHub
+docs/BACKLOG.md

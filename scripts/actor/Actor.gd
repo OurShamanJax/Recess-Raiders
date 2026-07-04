@@ -673,7 +673,9 @@ func _physics_process(delta: float) -> void:
 		var ratio := 0.0
 		if moving:
 			ratio = 1.0 if can_sprint else 0.5
-		rig.set_locomotion(ratio, delta)
+		# pass the ACTUAL horizontal speed so walk/run playback tracks the ground
+		# (momentum ramps, collisions) instead of skating at a fixed clip rate
+		rig.set_locomotion(ratio, delta, Vector2(velocity.x, velocity.z).length())
 
 
 # --- pickup: must be close AND facing the target -----------------------------

@@ -20,6 +20,16 @@ func _ready() -> void:
 	$Pause/Panel/VBox/Resume.pressed.connect(_resume)
 	$Pause/Panel/VBox/SettingsBtn.pressed.connect(_open_settings)
 	$Pause/Panel/VBox/Exit.pressed.connect(_exit)
+	# "Main Menu" sits between Settings and Exit — built in code so the scene file
+	# stays untouched. Hard-stops the current match and returns to the title flow.
+	var mm_btn := Button.new()
+	mm_btn.name = "MainMenuBtn"
+	mm_btn.text = "Main Menu"
+	mm_btn.custom_minimum_size = Vector2(220, 48)   # match the scene's buttons
+	var vbox: VBoxContainer = $Pause/Panel/VBox
+	vbox.add_child(mm_btn)
+	vbox.move_child(mm_btn, ($Pause/Panel/VBox/SettingsBtn as Control).get_index() + 1)
+	mm_btn.pressed.connect(_to_main_menu)
 	# Build the tabbed settings UI in code (replaces the old flat scene rows).
 	_build_settings_tabs()
 
@@ -66,6 +76,9 @@ func _build_settings_tabs() -> void:
 
 	# --- Graphics tab ---
 	var gx := _new_tab(tabs, "Graphics")
+	# one-click preset — batch-sets everything below (Performance is the
+	# weak-hardware profile: 75% render scale, low shadows/grass, no GI/SSAO/AA)
+	_add_option(gx, "graphics_preset", "Quality Preset", ["Performance", "Quality"])
 	_add_check(gx, "fullscreen", "Fullscreen")
 	_add_option(gx, "grass_quality", "Grass Quality", ["Off", "Low", "High"])
 	_add_option(gx, "shadow_quality", "Shadow Quality", ["Off", "Low", "High"])
@@ -252,7 +265,7 @@ func _open_settings() -> void:
 	# load every setting into the pending dict, then reflect into the controls.
 	var keys := [
 		"sprint_fx", "show_nametags", "mouse_sensitivity",
-		"fullscreen", "grass_quality", "shadow_quality", "gi_quality",
+		"fullscreen", "graphics_preset", "grass_quality", "shadow_quality", "gi_quality",
 		"ambient_occlusion", "reflections", "indirect_light", "bloom",
 		"anti_aliasing", "fov_first_person", "fov_third_person",
 		"master_volume", "welcome_volume", "music_volume_menu", "music_volume_game",
@@ -294,3 +307,12 @@ func _close_settings() -> void:
 func _exit() -> void:
 	get_tree().paused = false
 	get_tree().quit()
+
+## Hard-stop the current match and go back to the main menu. Match.return_to_menu
+## does the heavy lifting (GameState reset, teardown, demo backdrop respin) and
+## its returned_to_menu signal re-shows the menu, hides the HUD, frees the mouse.
+func _to_main_menu() -> void:
+	_paused = false
+	visible = false
+	get_tree().paused = false
+	Events.main_menu_requested.emit()

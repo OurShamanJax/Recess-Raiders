@@ -86,7 +86,15 @@ var _has_sit := false
 var _seated := false
 # Optional throw (baseball_pitching clip): one-shot pitch state, per-model.
 var _has_throw := false
-var _throwing := false
+# scale lock (per-game kid heights must survive whatever touches model scale)
+var _model_inst: Node3D = null
+var _locked_scale := Vector3.ONE
+var _scale_warned := false
+# bones the throw OneShot overlays — everything from the lower spine up. Legs and
+# Hips stay with locomotion so the run keeps running under the pitch.
+const UPPER_BODY_BONES := ["Spine02","Spine01","Spine","LeftShoulder","LeftArm",
+	"LeftForeArm","LeftHand","RightShoulder","RightArm","RightForeArm","RightHand",
+	"neck","Head","head_end","headfront"]
 var _airborne := false
 
 # The Meshy model stands ~2.2 units tall in glTF space after the 0.01 armature
@@ -170,6 +178,11 @@ func build(team_color: Color, _role: String, team: String = "blue", use_girl: bo
 	inst.scale = Vector3(model_scale, model_scale, model_scale) * scale_mult * h
 	inst.rotation.y = deg_to_rad(facing_offset_deg)
 	add_child(inst)
+	# SCALE LOCK: remember the built stature; _process re-asserts it if anything
+	# (animation internals, engine quirks) writes the model's scale at runtime —
+	# per-kid heights are set once per game and must stay locked.
+	_model_inst = inst
+	_locked_scale = inst.scale
 
 	_anim = _find_anim_player(inst)
 	if _anim == null:
@@ -316,19 +329,27 @@ func _build_tree(_inst: Node) -> void:
 	# Root state machine
 	var sm := AnimationNodeStateMachine.new()
 
-	# locomotion = blendspace1d between walk and run
-	var loco := AnimationNodeBlendSpace1D.new()
-	loco.min_space = 0.0
-	loco.max_space = 1.0
+	# locomotion = a small blend tree: BlendSpace1D (idle/walk/run) feeding a
+	# TimeScale, so the walk/run playback speed can track the actor's ACTUAL
+	# velocity (momentum ramps, collisions) instead of skating at a fixed rate.
+	var bs := AnimationNodeBlendSpace1D.new()
+	bs.min_space = 0.0
+	bs.max_space = 1.0
 	var alert_node := AnimationNodeAnimation.new(); alert_node.animation = "rig/alert"
 	var walk_node := AnimationNodeAnimation.new(); walk_node.animation = "rig/walk"
 	var run_node := AnimationNodeAnimation.new()
 	# characters with run variants (red/girl, or any def that sets has_run_variants)
 	# use their per-kid picked style; everyone else uses the single "run" clip
 	run_node.animation = "rig/" + _run_variant if _has_run_variants else "rig/run"
-	loco.add_blend_point(alert_node, 0.0)
-	loco.add_blend_point(walk_node, 0.5)
-	loco.add_blend_point(run_node, 1.0)
+	bs.add_blend_point(alert_node, 0.0)
+	bs.add_blend_point(walk_node, 0.5)
+	bs.add_blend_point(run_node, 1.0)
+	var loco := AnimationNodeBlendTree.new()
+	var ts := AnimationNodeTimeScale.new()
+	loco.add_node("bs", bs, Vector2(0, 0))
+	loco.add_node("ts", ts, Vector2(220, 0))
+	loco.connect_node("ts", 0, "bs")
+	loco.connect_node("output", 0, "ts")
 
 	var dead_node := AnimationNodeAnimation.new(); dead_node.animation = "rig/dead"
 	var arise_node := AnimationNodeAnimation.new(); arise_node.animation = "rig/arise"
@@ -381,26 +402,43 @@ func _build_tree(_inst: Node) -> void:
 		t_stand_loco.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
 		sm.add_transition("sit_exit", "locomotion", t_stand_loco)
 
-	# Optional THROW state — a one-shot pitch that auto-returns to locomotion when
-	# the (trimmed + cut) clip ends.
-	if _has_throw:
-		var throw_node := AnimationNodeAnimation.new(); throw_node.animation = "rig/throw"
-		sm.add_node("throw", throw_node, Vector2(520, 250))
-		var t_loco_throw := AnimationNodeStateMachineTransition.new()
-		t_loco_throw.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
-		sm.add_transition("locomotion", "throw", t_loco_throw)
-		var t_throw_loco := AnimationNodeStateMachineTransition.new()
-		t_throw_loco.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
-		t_throw_loco.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
-		sm.add_transition("throw", "locomotion", t_throw_loco)
 
-	_tree.tree_root = sm
+	# ROOT: a blend tree. The state machine drives the whole body; if this model
+	# has a throw clip, a FILTERED OneShot overlays the pitch on the UPPER BODY
+	# only (spine/arms/head), so the legs keep walking/running while throwing —
+	# no more full-body throw freezing the feet mid-run.
+	var root := AnimationNodeBlendTree.new()
+	root.add_node("sm", sm, Vector2(0, 0))
+	if _has_throw:
+		var throw_anim := AnimationNodeAnimation.new()
+		throw_anim.animation = "rig/throw"
+		var shot := AnimationNodeOneShot.new()
+		shot.fadein_time = 0.08
+		shot.fadeout_time = 0.18
+		shot.filter_enabled = true
+		# filter to upper-body tracks, read from the harvested throw clip itself so
+		# the paths are exactly what the tree resolves (never hand-built)
+		if _anim.has_animation("rig/throw"):
+			var tc: Animation = _anim.get_animation("rig/throw")
+			for ti in range(tc.get_track_count()):
+				var tp: NodePath = tc.track_get_path(ti)
+				var bone := String(tp.get_subname(0)) if tp.get_subname_count() > 0 else ""
+				if bone in UPPER_BODY_BONES:
+					shot.set_filter_path(tp, true)
+		root.add_node("throw_anim", throw_anim, Vector2(0, 200))
+		root.add_node("throw_shot", shot, Vector2(260, 100))
+		root.connect_node("throw_shot", 0, "sm")
+		root.connect_node("throw_shot", 1, "throw_anim")
+		root.connect_node("output", 0, "throw_shot")
+	else:
+		root.connect_node("output", 0, "sm")
+	_tree.tree_root = root
 	# advance with the physics step and point the tree at the model root so its
 	# clip tracks resolve against the same skeleton the base model uses
 	_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
 	_tree.root_node = _tree.get_path_to(_anim.get_parent())
 	_tree.active = true
-	_state_machine = _tree.get("parameters/playback")
+	_state_machine = _tree.get("parameters/sm/playback")
 	if _state_machine != null:
 		_state_machine.start("locomotion")
 
@@ -410,7 +448,7 @@ func _build_tree(_inst: Node) -> void:
 
 ## ratio 0..1: 0 = idle (alert), 0.5 = walk, 1 = sprint. Self-heals the state
 ## machine back into locomotion if it ever got stuck (the respawn-glide bug).
-func set_locomotion(ratio: float, delta: float) -> void:
+func set_locomotion(ratio: float, delta: float, speed: float = -1.0) -> void:
 	if _tree == null or _is_dead or _state_machine == null:
 		return
 	# Don't yank the rig out of the jump state while airborne — set_airborne owns
@@ -422,14 +460,22 @@ func set_locomotion(ratio: float, delta: float) -> void:
 	# without this guard the self-heal would instantly cancel the seated pose.
 	if _has_sit and _seated:
 		return
-	# play_throw owns the throw window; don't let the self-heal cancel the pitch
-	if _has_throw and _throwing:
-		return
 	# if we're not in the locomotion state (e.g. arise didn't auto-advance), force it
 	if _state_machine.get_current_node() != "locomotion":
 		_state_machine.travel("locomotion")
 	_blend_speed = lerpf(_blend_speed, clampf(ratio, 0.0, 1.0), clampf(delta * 8.0, 0.0, 1.0))
-	_tree.set("parameters/locomotion/blend_position", _blend_speed)
+	_tree.set("parameters/sm/locomotion/bs/blend_position", _blend_speed)
+	# speed-sync: scale walk/run playback to the actor's ACTUAL horizontal speed so
+	# feet match the ground during momentum ramps (no skating). The clips are
+	# authored around WALK_SPEED (blend 0.5) and SPRINT_SPEED (blend 1.0); idle
+	# stays at 1.0. Clamped so extreme ratios never look silly.
+	var tscale := 1.0
+	if speed >= 0.0 and _blend_speed > 0.25:
+		var expected: float = Config.WALK_SPEED
+		if _blend_speed > 0.5:
+			expected = lerpf(Config.WALK_SPEED, Config.SPRINT_SPEED, clampf((_blend_speed - 0.5) / 0.5, 0.0, 1.0))
+		tscale = clampf(speed / maxf(expected, 0.1), 0.6, 1.4)
+	_tree.set("parameters/sm/locomotion/ts/scale", tscale)
 
 ## Airborne state from the Actor (true while off the floor). Plays the jump clip
 ## for models that have one; no-op for models without a jump clip. Dead bodies
@@ -451,7 +497,9 @@ func play_dead() -> void:
 	_is_dead = true
 	_airborne = false
 	_seated = false
-	_throwing = false
+	# a corpse shouldn't keep pitching — abort any in-flight throw overlay
+	if _has_throw:
+		_tree.set("parameters/throw_shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
 	_state_machine.travel("dead")
 
 func play_arise() -> void:
@@ -460,7 +508,6 @@ func play_arise() -> void:
 	_is_dead = false
 	_airborne = false
 	_seated = false
-	_throwing = false
 	# go straight back to locomotion; the arise clip is brief and the immediate
 	# transition avoids getting stuck if the actor starts moving right away
 	_state_machine.travel("locomotion")
@@ -500,17 +547,14 @@ func has_throw() -> bool:
 
 ## Play the one-shot pitch. Guards the state machine for the clip's (trimmed+cut)
 ## duration, then releases; the AT_END auto-transition returns to locomotion.
+## Fire the pitch as a FILTERED overlay: arms/torso throw while the legs keep
+## their locomotion — running throws look right, and movement never interrupts.
 func play_throw() -> void:
-	if not _has_throw or _tree == null or _is_dead or _state_machine == null:
+	if not _has_throw or _tree == null or _is_dead:
 		return
 	if _seated:
 		return   # can't pitch from a bench
-	_throwing = true
-	_state_machine.travel("throw")
-	var dur := 1.2
-	if _anim != null and _anim.has_animation("rig/throw"):
-		dur = _anim.get_animation("rig/throw").length + 0.1
-	get_tree().create_timer(dur).timeout.connect(func(): _throwing = false)
+	_tree.set("parameters/throw_shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 func face_heading(heading: float, delta: float) -> void:
 	# smooth yaw toward heading (model child already has facing offset baked)
@@ -543,3 +587,21 @@ func add_nametag(text: String, color: Color) -> void:
 func _refresh_nametag() -> void:
 	if _nametag != null:
 		_nametag.visible = Settings.show_nametags
+
+
+func _process(_delta: float) -> void:
+	# enforce the per-game stature: if ANYTHING rescales the model at runtime,
+	# snap it back — and warn once so the culprit is visible in the console.
+	if _model_inst != null and is_instance_valid(_model_inst):
+		if not _model_inst.scale.is_equal_approx(_locked_scale):
+			if not _scale_warned:
+				_scale_warned = true
+				push_warning("CharacterRig: model scale drifted %s -> locked %s (auto-corrected; report this)" % [str(_model_inst.scale), str(_locked_scale)])
+			_model_inst.scale = _locked_scale
+	# the rig node itself must stay unscaled (heights live on the model child);
+	# if THIS is what drifts, the warning names it and we've found the culprit
+	if not scale.is_equal_approx(Vector3.ONE):
+		if not _scale_warned:
+			_scale_warned = true
+			push_warning("CharacterRig: RIG node scale drifted to %s (auto-corrected; report this)" % str(scale))
+		scale = Vector3.ONE
