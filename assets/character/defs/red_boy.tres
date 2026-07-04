@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/actor/CharacterDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"red_boy"
+display_name = "Regular Boy Red"
+team = "red"
+base_model_path = "res://assets/character/red/red_base.glb"
+clip_paths = {
+"alert": "res://assets/character/red/red_alert.glb",
+"arise": "res://assets/character/red/red_arise.glb",
+"dead": "res://assets/character/red/red_dead.glb",
+"run": "res://assets/character/red/red_run.glb",
+"run_03": "res://assets/character/red/red_run_03.glb",
+"run_fast": "res://assets/character/red/red_run_fast.glb",
+"walk": "res://assets/character/red/red_walk.glb",
+"walk_casual": "res://assets/character/red/red_walk_casual.glb"
+}
+clip_anim_names = {
+"alert": "Armature|Alert|baselayer",
+"arise": "Armature|Arise|baselayer",
+"dead": "Armature|Dead|baselayer",
+"run": "Armature|running|baselayer",
+"run_03": "Armature|Run_03|baselayer",
+"run_fast": "Armature|RunFast|baselayer",
+"walk": "Armature|walking_man|baselayer",
+"walk_casual": "Armature|Casual_Walk|baselayer"
+}
+model_scale = 2.7
+scale_mult = 1.12
+facing_offset_deg = 0.0
+has_run_variants = true
+run_variant_keys = PackedStringArray("run", "run_fast", "run_03")

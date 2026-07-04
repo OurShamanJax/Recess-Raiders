@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3 uid="uid://bgaunt0ball01"]
+
+[ext_resource type="Script" path="res://scripts/ball/Ball.gd" id="1_ball"]
+
+[sub_resource type="SphereShape3D" id="SphereShape_ball"]
+radius = 1.25
+
+[node name="Ball" type="RigidBody3D"]
+script = ExtResource("1_ball")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape_ball")

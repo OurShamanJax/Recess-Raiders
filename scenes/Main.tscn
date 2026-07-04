@@ -1,0 +1,382 @@
+[gd_scene load_steps=7 format=3 uid="uid://bgaunt0main01"]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://bgaunt0match1" path="res://scenes/Match.tscn" id="2_match"]
+[ext_resource type="Script" path="res://scripts/ui/MenuOverlay.gd" id="3_menu"]
+[ext_resource type="Script" path="res://scripts/ui/Hud.gd" id="4_hud"]
+[ext_resource type="Script" path="res://scripts/ui/PauseMenu.gd" id="5_pause"]
+
+[sub_resource type="StyleBoxFlat" id="SB_panel"]
+bg_color = Color(0.04, 0.07, 0.1, 0.92)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Match" parent="." instance=ExtResource("2_match")]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Hud" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("4_hud")
+
+[node name="Scoreboard" type="PanelContainer" parent="UI/Hud"]
+offset_left = 16.0
+offset_top = 14.0
+offset_right = 210.0
+offset_bottom = 92.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="Rows" type="VBoxContainer" parent="UI/Hud/Scoreboard"]
+theme_override_constants/separation = 4
+
+[node name="BlueRow" type="HBoxContainer" parent="UI/Hud/Scoreboard/Rows"]
+theme_override_constants/separation = 10
+
+[node name="BlueName" type="Label" parent="UI/Hud/Scoreboard/Rows/BlueRow"]
+custom_minimum_size = Vector2(120, 0)
+theme_override_colors/font_color = Color(0.43, 0.66, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "BLUE"
+
+[node name="BlueScore" type="Label" parent="UI/Hud/Scoreboard/Rows/BlueRow"]
+horizontal_alignment = 2
+custom_minimum_size = Vector2(40, 0)
+theme_override_colors/font_color = Color(0.43, 0.66, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="RedRow" type="HBoxContainer" parent="UI/Hud/Scoreboard/Rows"]
+theme_override_constants/separation = 10
+
+[node name="RedName" type="Label" parent="UI/Hud/Scoreboard/Rows/RedRow"]
+custom_minimum_size = Vector2(120, 0)
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+theme_override_font_sizes/font_size = 20
+text = "RED"
+
+[node name="RedScore" type="Label" parent="UI/Hud/Scoreboard/Rows/RedRow"]
+horizontal_alignment = 2
+custom_minimum_size = Vector2(40, 0)
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+
+[node name="StaminaWrap" type="VBoxContainer" parent="UI/Hud"]
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -140.0
+offset_top = -50.0
+offset_right = 140.0
+offset_bottom = -20.0
+
+[node name="Bar" type="ProgressBar" parent="UI/Hud/StaminaWrap"]
+custom_minimum_size = Vector2(280, 14)
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="Carry" type="Label" parent="UI/Hud"]
+visible = false
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -84.0
+offset_right = 150.0
+offset_bottom = -60.0
+horizontal_alignment = 1
+text = "● Carrying — run it to your goal!"
+
+[node name="EndScreen" type="ColorRect" parent="UI/Hud"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.02, 0.03, 0.05, 0.82)
+
+[node name="Panel" type="PanelContainer" parent="UI/Hud/EndScreen"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -150.0
+offset_right = 220.0
+offset_bottom = 150.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="UI/Hud/EndScreen/Panel"]
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Title" type="Label" parent="UI/Hud/EndScreen/Panel/VBox"]
+theme_override_font_sizes/font_size = 52
+horizontal_alignment = 1
+text = "VICTORY!"
+
+[node name="Detail" type="Label" parent="UI/Hud/EndScreen/Panel/VBox"]
+horizontal_alignment = 1
+autowrap_mode = 2
+text = "Final score"
+
+[node name="Restart" type="Button" parent="UI/Hud/EndScreen/Panel/VBox"]
+custom_minimum_size = Vector2(200, 56)
+theme_override_font_sizes/font_size = 22
+text = "PLAY AGAIN"
+
+[node name="MenuOverlay" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("3_menu")
+
+[node name="BG" type="ColorRect" parent="UI/MenuOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.03, 0.06, 0.09, 1)
+
+[node name="Panel" type="PanelContainer" parent="UI/MenuOverlay"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -230.0
+offset_right = 280.0
+offset_bottom = 230.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="UI/MenuOverlay/Panel"]
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="UI/MenuOverlay/Panel/VBox"]
+theme_override_font_sizes/font_size = 46
+horizontal_alignment = 1
+text = "RECESS RAIDERS"
+
+[node name="Sub" type="Label" parent="UI/MenuOverlay/Panel/VBox"]
+horizontal_alignment = 1
+autowrap_mode = 2
+text = "Steal the enemy team's balls and bank them in your own goal. Tag intruders to send them home. Drain the enemy to zero to win."
+
+[node name="CamLabel" type="Label" parent="UI/MenuOverlay/Panel/VBox"]
+horizontal_alignment = 1
+text = "Camera"
+
+[node name="CamModes" type="HBoxContainer" parent="UI/MenuOverlay/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="TopBtn" type="Button" parent="UI/MenuOverlay/Panel/VBox/CamModes"]
+toggle_mode = true
+button_pressed = true
+text = "Top-down"
+
+[node name="FpBtn" type="Button" parent="UI/MenuOverlay/Panel/VBox/CamModes"]
+toggle_mode = true
+text = "First-person"
+
+[node name="DiffLabel" type="Label" parent="UI/MenuOverlay/Panel/VBox"]
+horizontal_alignment = 1
+text = "AI difficulty"
+
+[node name="Diff" type="HBoxContainer" parent="UI/MenuOverlay/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 8
+
+[node name="Casual" type="Button" parent="UI/MenuOverlay/Panel/VBox/Diff"]
+toggle_mode = true
+text = "Casual"
+
+[node name="Skilled" type="Button" parent="UI/MenuOverlay/Panel/VBox/Diff"]
+toggle_mode = true
+button_pressed = true
+text = "Skilled"
+
+[node name="Ruthless" type="Button" parent="UI/MenuOverlay/Panel/VBox/Diff"]
+toggle_mode = true
+text = "Ruthless"
+
+[node name="Teams" type="HBoxContainer" parent="UI/MenuOverlay/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 14
+
+[node name="BlueBtn" type="Button" parent="UI/MenuOverlay/Panel/VBox/Teams"]
+custom_minimum_size = Vector2(170, 56)
+theme_override_font_sizes/font_size = 22
+text = "JOIN BLUE"
+
+[node name="RedBtn" type="Button" parent="UI/MenuOverlay/Panel/VBox/Teams"]
+custom_minimum_size = Vector2(170, 56)
+theme_override_font_sizes/font_size = 22
+text = "JOIN RED"
+
+[node name="Keys" type="Label" parent="UI/MenuOverlay/Panel/VBox"]
+horizontal_alignment = 1
+text = "WASD move · Shift sprint · LMB throw · RMB pass · V swap camera · Esc release mouse"
+
+[node name="PauseLayer" type="CanvasLayer" parent="."]
+
+[node name="PauseMenu" type="Control" parent="PauseLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("5_pause")
+
+[node name="Pause" type="ColorRect" parent="PauseLayer/PauseMenu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.02, 0.03, 0.05, 0.7)
+
+[node name="Panel" type="PanelContainer" parent="PauseLayer/PauseMenu/Pause"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -130.0
+offset_right = 150.0
+offset_bottom = 130.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PauseLayer/PauseMenu/Pause/Panel"]
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="PauseLayer/PauseMenu/Pause/Panel/VBox"]
+theme_override_font_sizes/font_size = 34
+horizontal_alignment = 1
+text = "PAUSED"
+
+[node name="Resume" type="Button" parent="PauseLayer/PauseMenu/Pause/Panel/VBox"]
+custom_minimum_size = Vector2(220, 48)
+text = "Resume"
+
+[node name="SettingsBtn" type="Button" parent="PauseLayer/PauseMenu/Pause/Panel/VBox"]
+custom_minimum_size = Vector2(220, 48)
+text = "Settings"
+
+[node name="Exit" type="Button" parent="PauseLayer/PauseMenu/Pause/Panel/VBox"]
+custom_minimum_size = Vector2(220, 48)
+text = "Exit Game"
+
+[node name="SettingsPanel" type="ColorRect" parent="PauseLayer/PauseMenu"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.02, 0.03, 0.05, 0.85)
+
+[node name="Panel" type="PanelContainer" parent="PauseLayer/PauseMenu/SettingsPanel"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -240.0
+offset_right = 260.0
+offset_bottom = 240.0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel"]
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+text = "Settings"
+
+[node name="SprintFx" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/SprintFx"]
+custom_minimum_size = Vector2(280, 0)
+text = "Sprint visual effects"
+
+[node name="Check" type="CheckBox" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/SprintFx"]
+button_pressed = true
+
+[node name="Nametags" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Nametags"]
+custom_minimum_size = Vector2(280, 0)
+text = "Show player nametags"
+
+[node name="Check" type="CheckBox" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Nametags"]
+button_pressed = true
+
+[node name="Sens" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Sens"]
+custom_minimum_size = Vector2(280, 0)
+text = "Mouse sensitivity"
+
+[node name="Slider" type="HSlider" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Sens"]
+custom_minimum_size = Vector2(180, 0)
+min_value = 0.2
+max_value = 3.0
+step = 0.1
+value = 1.0
+
+[node name="Volume" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Volume"]
+custom_minimum_size = Vector2(280, 0)
+text = "Master volume"
+
+[node name="Slider" type="HSlider" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Volume"]
+custom_minimum_size = Vector2(180, 0)
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 0.8
+
+[node name="Grass" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Grass"]
+custom_minimum_size = Vector2(280, 0)
+text = "Grass quality"
+
+[node name="Option" type="OptionButton" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Grass"]
+custom_minimum_size = Vector2(180, 0)
+
+[node name="Shadows" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Shadows"]
+custom_minimum_size = Vector2(280, 0)
+text = "Shadow quality"
+
+[node name="Option" type="OptionButton" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Shadows"]
+custom_minimum_size = Vector2(180, 0)
+
+[node name="Fullscreen" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+
+[node name="Label" type="Label" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Fullscreen"]
+custom_minimum_size = Vector2(280, 0)
+text = "Fullscreen"
+
+[node name="Check" type="CheckBox" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Fullscreen"]
+
+[node name="Buttons" type="HBoxContainer" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox"]
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="Apply" type="Button" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Buttons"]
+custom_minimum_size = Vector2(140, 48)
+text = "Apply"
+
+[node name="Back" type="Button" parent="PauseLayer/PauseMenu/SettingsPanel/Panel/VBox/Buttons"]
+custom_minimum_size = Vector2(140, 48)
+text = "Back"

@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/actor/CharacterDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"blue_indianboy"
+display_name = "Smart Boy Blue"
+team = "blue"
+base_model_path = "res://assets/character/indianboy/indianboy_base.glb"
+clip_paths = {
+"alert": "res://assets/character/indianboy/indianboy_alert.glb",
+"arise": "res://assets/character/indianboy/indianboy_arise.glb",
+"dead": "res://assets/character/indianboy/indianboy_dead.glb",
+"run": "res://assets/character/indianboy/indianboy_run.glb",
+"run_03": "res://assets/character/indianboy/indianboy_run_03.glb",
+"run_fast": "res://assets/character/indianboy/indianboy_run_fast.glb",
+"walk": "res://assets/character/indianboy/indianboy_walk.glb",
+"throw": "res://assets/character/indianboy/indianboy_throw.glb"
+}
+clip_anim_names = {
+"alert": "Armature|Alert|baselayer",
+"arise": "Armature|Stand_Up4|baselayer",
+"dead": "Armature|Dead|baselayer",
+"run": "Armature|running|baselayer",
+"run_03": "Armature|Run_03|baselayer",
+"run_fast": "Armature|RunFast|baselayer",
+"walk": "Armature|walking_man|baselayer",
+"throw": "Armature|baseball_pitching|baselayer"
+}
+model_scale = 2.7
+scale_mult = 1.06
+facing_offset_deg = 0.0
+has_run_variants = true
+run_variant_keys = PackedStringArray("run", "run_fast", "run_03")
+
+clip_trims = {
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
+}

@@ -1,0 +1,25 @@
+# Godot 4 — generated / cache files (never commit these)
+.godot/
+.import/
+*.import
+export.cfg
+export_presets.cfg
+
+# Godot build/export output
+build/
+*.exe
+*.pck
+*.zip
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Python scratch (used for asset tooling during dev)
+__pycache__/
+*.pyc
+strip_clip.py

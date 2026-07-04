@@ -1,0 +1,50 @@
+[gd_scene load_steps=10 format=3 uid="uid://bgaunt0match1"]
+
+[ext_resource type="Script" path="res://scripts/match/Match.gd" id="1_match"]
+[ext_resource type="Script" path="res://scripts/match/Field.gd" id="2_field"]
+[ext_resource type="Script" path="res://scripts/match/Environment.gd" id="3_env"]
+[ext_resource type="Script" path="res://scripts/match/BallManager.gd" id="4_ballmgr"]
+[ext_resource type="Script" path="res://scripts/match/TeamManager.gd" id="5_teammgr"]
+[ext_resource type="Script" path="res://scripts/match/CameraRig.gd" id="6_camrig"]
+[ext_resource type="Script" path="res://scripts/match/ConeManager.gd" id="7_conemgr"]
+[ext_resource type="Script" path="res://scripts/match/NavManager.gd" id="8_navmgr"]
+
+[node name="Match" type="Node3D"]
+script = ExtResource("1_match")
+
+[node name="Field" type="Node3D" parent="."]
+script = ExtResource("2_field")
+
+[node name="Environment" type="Node3D" parent="."]
+script = ExtResource("3_env")
+
+[node name="BallManager" type="Node3D" parent="."]
+script = ExtResource("4_ballmgr")
+
+[node name="ConeManager" type="Node3D" parent="."]
+script = ExtResource("7_conemgr")
+
+[node name="NavManager" type="Node3D" parent="."]
+script = ExtResource("8_navmgr")
+
+[node name="TeamManager" type="Node3D" parent="."]
+script = ExtResource("5_teammgr")
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("6_camrig")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.7, 0.7, 0, -0.7, 0.7, 0, 60, 55)
+fov = 62.0
+far = 1200.0
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.8, -0.4, 0.45, 0, 0.75, 0.66, -0.6, -0.53, 0.6, 60, 140, 40)
+light_color = Color(1, 0.94, 0.82, 1)
+light_energy = 1.6
+shadow_enabled = true
+
+[node name="HemiLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 100, 0)
+light_color = Color(0.74, 0.85, 1, 1)
+light_energy = 0.5

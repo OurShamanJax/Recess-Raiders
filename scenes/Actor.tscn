@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://bgaunt0actor1"]
+
+[ext_resource type="Script" path="res://scripts/actor/Actor.gd" id="1_actor"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_actor"]
+radius = 1.2
+height = 6.0
+
+[node name="Actor" type="CharacterBody3D"]
+collision_layer = 1
+collision_mask = 9
+script = ExtResource("1_actor")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+shape = SubResource("CapsuleShape3D_actor")

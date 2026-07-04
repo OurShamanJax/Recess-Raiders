@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/actor/CharacterDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"blue_asiangirl"
+display_name = "Asian Girl Blue"
+team = "blue"
+base_model_path = "res://assets/character/blueasiangirl/blueasiangirl_base.glb"
+clip_paths = {
+"alert": "res://assets/character/blueasiangirl/blueasiangirl_alert.glb",
+"arise": "res://assets/character/blueasiangirl/blueasiangirl_arise.glb",
+"dead": "res://assets/character/blueasiangirl/blueasiangirl_dead.glb",
+"jump": "res://assets/character/blueasiangirl/blueasiangirl_jump.glb",
+"sit": "res://assets/character/blueasiangirl/blueasiangirl_sit.glb",
+"sit_exit": "res://assets/character/blueasiangirl/blueasiangirl_stand.glb",
+"run": "res://assets/character/blueasiangirl/blueasiangirl_run.glb",
+"run_fast": "res://assets/character/blueasiangirl/blueasiangirl_run_fast.glb",
+"walk": "res://assets/character/blueasiangirl/blueasiangirl_walk.glb",
+"throw": "res://assets/character/blueasiangirl/blueasiangirl_throw.glb"
+}
+clip_anim_names = {
+"alert": "Armature|Alert|baselayer",
+"arise": "Armature|Stand_Up4|baselayer",
+"dead": "Armature|Dead|baselayer",
+"jump": "Armature|Regular_Jump|baselayer",
+"sit": "Armature|Look_Back_and_Sit|baselayer",
+"sit_exit": "Armature|Sit_to_Stand_Transition_F|baselayer",
+"run": "Armature|running|baselayer",
+"run_fast": "Armature|run_fast_9|baselayer",
+"walk": "Armature|Walking_Woman|baselayer",
+"throw": "Armature|baseball_pitching|baselayer"
+}
+model_scale = 2.7
+scale_mult = 1.10
+facing_offset_deg = 0.0
+has_run_variants = true
+run_variant_keys = PackedStringArray("run", "run_fast")
+has_jump = true
+sit_raise = 0.9
+sit_forward = 1.4
+clip_trims = {
+"jump": 0.5,
+"sit": 0.4,
+"sit_exit": 2.3,
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
+}

@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/actor/CharacterDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"red_asianboy"
+display_name = "Hoodie Boy Red"
+team = "red"
+base_model_path = "res://assets/character/asianboy/asianboy_base.glb"
+clip_paths = {
+"alert": "res://assets/character/asianboy/asianboy_alert.glb",
+"arise": "res://assets/character/asianboy/asianboy_arise.glb",
+"dead": "res://assets/character/asianboy/asianboy_dead.glb",
+"jump": "res://assets/character/asianboy/asianboy_jump.glb",
+"sit": "res://assets/character/asianboy/asianboy_sit.glb",
+"sit_exit": "res://assets/character/asianboy/asianboy_stand.glb",
+"run": "res://assets/character/asianboy/asianboy_run.glb",
+"run_03": "res://assets/character/asianboy/asianboy_run_03.glb",
+"run_fast": "res://assets/character/asianboy/asianboy_run_fast.glb",
+"walk": "res://assets/character/asianboy/asianboy_walk.glb",
+"throw": "res://assets/character/asianboy/asianboy_throw.glb"
+}
+clip_anim_names = {
+"alert": "Armature|Alert|baselayer",
+"arise": "Armature|Arise|baselayer",
+"dead": "Armature|Dead|baselayer",
+"jump": "Armature|Jump_with_Arms_Open|baselayer",
+"sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
+"sit_exit": "Armature|Sit_to_Stand_Transition_M|baselayer",
+"run": "Armature|running|baselayer",
+"run_03": "Armature|Run_02|baselayer",
+"run_fast": "Armature|RunFast|baselayer",
+"walk": "Armature|walking_man|baselayer",
+"throw": "Armature|baseball_pitching|baselayer"
+}
+model_scale = 2.7
+scale_mult = 1.10
+facing_offset_deg = 0.0
+has_run_variants = true
+run_variant_keys = PackedStringArray("run", "run_fast", "run_03")
+has_jump = true
+sit_raise = 1.1
+sit_forward = 2.2
+clip_trims = {
+"jump": 0.7,
+"sit": 1.3,
+"sit_exit": 1.4,
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
+}

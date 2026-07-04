@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="CharacterDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/actor/CharacterDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"blue_boy"
+display_name = "Regular Boy Blue"
+team = "blue"
+base_model_path = "res://assets/character/boy_base.glb"
+clip_paths = {
+"alert": "res://assets/character/boy_alert.glb",
+"arise": "res://assets/character/boy_arise.glb",
+"dead": "res://assets/character/boy_dead.glb",
+"run": "res://assets/character/boy_run.glb",
+"walk": "res://assets/character/boy_walk.glb"
+}
+clip_anim_names = {
+"alert": "Armature|Alert|baselayer",
+"arise": "Armature|Arise|baselayer",
+"dead": "Armature|Dead|baselayer",
+"run": "Armature|running|baselayer",
+"walk": "Armature|walking_man|baselayer"
+}
+model_scale = 2.7
+scale_mult = 1.0
+facing_offset_deg = 0.0
+has_run_variants = false
+run_variant_keys = PackedStringArray("run")
