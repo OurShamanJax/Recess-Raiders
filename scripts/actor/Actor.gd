@@ -680,6 +680,9 @@ func _physics_process(delta: float) -> void:
 		var ratio := 0.0
 		if moving:
 			ratio = 1.0 if can_sprint else 0.5
+		# held crouch pose (cosmetic; models without the clip ignore it)
+		if rig.has_method("set_crouching"):
+			rig.set_crouching(crouching)
 		# pass the ACTUAL horizontal speed so walk/run playback tracks the ground
 		# (momentum ramps, collisions) instead of skating at a fixed clip rate
 		rig.set_locomotion(ratio, delta, Vector2(velocity.x, velocity.z).length())
@@ -745,6 +748,13 @@ var _throw_qte_active := false
 var _pending_is_pass := false       # was the stashed throw a pass (vs. free throw)?
 
 func _request_throw(it: Intent) -> void:
+	# a throw is already committed (anim winding up, ball leaves at the release
+	# frame) — ignore new requests until the ball is actually gone. Without this,
+	# the very mouse-click that RESOLVED the QTE is re-read as a fresh throw press
+	# during the 0.38s release window, opening a second QTE on an already-thrown
+	# ball that then "fumbles" — the phantom double-QTE bug.
+	if _pending_release_timer > 0.0:
+		return
 	if not is_user:
 		_begin_throw(it)   # NPCs: no QTE; anim windup still applies if they have one
 		return

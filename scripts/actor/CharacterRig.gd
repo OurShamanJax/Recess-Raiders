@@ -9,15 +9,15 @@ extends Node3D
 ## Per-team model + clip sets. Blue uses the original boy; red uses the red boy
 ## which ships extra walk/run variants for visual variety. Both rigs share the
 ## same bone structure and default +Z facing, so facing_offset_deg=0 fits both.
-const BLUE_BASE: PackedScene = preload("res://assets/character/boy_base.glb")
+const BLUE_BASE: PackedScene = preload("res://assets/character/blueboy/blueboy_base.glb")
 const RED_BASE: PackedScene = preload("res://assets/character/red/red_base.glb")
 
 const BLUE_CLIPS := {
-	"alert": "res://assets/character/boy_alert.glb",
-	"walk": "res://assets/character/boy_walk.glb",
-	"run": "res://assets/character/boy_run.glb",
-	"dead": "res://assets/character/boy_dead.glb",
-	"arise": "res://assets/character/boy_arise.glb",
+	"alert": "res://assets/character/blueboy/blueboy_alert.glb",
+	"walk": "res://assets/character/blueboy/blueboy_walk.glb",
+	"run": "res://assets/character/blueboy/blueboy_run.glb",
+	"dead": "res://assets/character/blueboy/blueboy_dead.glb",
+	"arise": "res://assets/character/blueboy/blueboy_arise.glb",
 }
 const BLUE_NAMES := {
 	"alert": "Armature|Alert|baselayer",
@@ -87,6 +87,8 @@ var _seated := false
 # Optional throw (baseball_pitching clip): one-shot pitch state, per-model.
 var _has_throw := false
 var _sit_idle_key := ""   # randomly picked per-build from the def's sit_idle keys
+var _has_crouch := false
+var _crouched := false
 # scale lock (per-game kid heights must survive whatever touches model scale)
 var _model_inst: Node3D = null
 var _locked_scale := Vector3.ONE
@@ -140,6 +142,7 @@ func build(team_color: Color, _role: String, team: String = "blue", use_girl: bo
 		_has_jump = _def.has_jump and _def.clip_paths.has("jump")
 		_has_sit = _def.clip_paths.has("sit") and _def.clip_paths.has("sit_exit")
 		_has_throw = _def.clip_paths.has("throw")
+		_has_crouch = _def.clip_paths.has("crouch")
 		if _has_run_variants and _variant_keys.size() > 0:
 			_run_variant = _variant_keys[randi() % _variant_keys.size()]
 		else:
@@ -364,6 +367,18 @@ func _build_tree(_inst: Node) -> void:
 	var arise_node := AnimationNodeAnimation.new(); arise_node.animation = "rig/arise"
 
 	sm.add_node("locomotion", loco, Vector2(200, 100))
+	# Optional CROUCH: a held, looping look-around pose while the crouch key is
+	# down (purely cosmetic — no gameplay/tag effects, per design).
+	if _has_crouch:
+		var crouch_node := AnimationNodeAnimation.new()
+		crouch_node.animation = "rig/crouch"
+		sm.add_node("crouch", crouch_node, Vector2(-60, 220))
+		var t_loco_crouch := AnimationNodeStateMachineTransition.new()
+		t_loco_crouch.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+		sm.add_transition("locomotion", "crouch", t_loco_crouch)
+		var t_crouch_loco := AnimationNodeStateMachineTransition.new()
+		t_crouch_loco.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+		sm.add_transition("crouch", "locomotion", t_crouch_loco)
 	sm.add_node("dead", dead_node, Vector2(400, 100))
 	sm.add_node("arise", arise_node, Vector2(400, 250))
 
@@ -490,6 +505,10 @@ func set_locomotion(ratio: float, delta: float, speed: float = -1.0) -> void:
 	# without this guard the self-heal would instantly cancel the seated pose.
 	if _has_sit and _seated:
 		return
+	# crouch is a HELD state: while the key is down, stay in the crouch pose and
+	# don't let the per-frame locomotion self-heal yank us out of it
+	if _has_crouch and _crouched:
+		return
 	# if we're not in the locomotion state (e.g. arise didn't auto-advance), force it
 	if _state_machine.get_current_node() != "locomotion":
 		_state_machine.travel("locomotion")
@@ -527,6 +546,7 @@ func play_dead() -> void:
 	_is_dead = true
 	_airborne = false
 	_seated = false
+	_crouched = false
 	# a corpse shouldn't keep pitching — abort any in-flight throw overlay
 	if _has_throw:
 		_tree.set("parameters/throw_shot/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
@@ -546,6 +566,18 @@ func play_arise() -> void:
 
 func has_sit() -> bool:
 	return _has_sit
+
+## Held crouch pose (models without a crouch clip simply ignore this).
+func set_crouching(on: bool) -> void:
+	if not _has_crouch or _tree == null or _is_dead or _seated or _state_machine == null:
+		return
+	if on == _crouched:
+		return
+	_crouched = on
+	if on:
+		_state_machine.travel("crouch")
+	else:
+		_state_machine.travel("locomotion")
 
 ## The def this rig was built from (or null for the legacy hardcoded path).
 func get_def() -> CharacterDef:

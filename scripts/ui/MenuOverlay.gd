@@ -876,7 +876,7 @@ func _set_preview_model(team: String, id: String) -> void:
 	if def != null and def.base_model_path != "":
 		path = def.base_model_path
 	elif team == "blue":
-		path = "res://assets/character/boy_alert.glb"
+		path = "res://assets/character/blueboy/blueboy_alert.glb"
 	elif id == "girl":
 		path = "res://assets/character/girl/girl_alert.glb"
 	else:
@@ -905,7 +905,7 @@ func _preview_walk_path(team: String, id: String, def: CharacterDef) -> String:
 		return "res://assets/character/girl/girl_walk.glb"
 	if team == "red":
 		return "res://assets/character/red/red_walk.glb"
-	return "res://assets/character/boy_walk.glb"
+	return "res://assets/character/blueboy/blueboy_walk.glb"
 
 ## The internal animation name inside that walk GLB.
 func _preview_walk_anim_name(def: CharacterDef) -> String:

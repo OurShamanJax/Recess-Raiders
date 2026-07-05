@@ -31,7 +31,7 @@ extends Resource
 ## The base model GLB (the rigged mesh; animation tracks come from the clips).
 ## Path string rather than a preloaded PackedScene so the resource stays pure
 ## data and the rig controls when/if it loads. Example:
-##   "res://assets/character/boy_base.glb"
+##   "res://assets/character/blueboy/blueboy_base.glb"
 @export var base_model_path: String = ""
 
 ## clip key -> source GLB path. Keys are the rig's logical states:

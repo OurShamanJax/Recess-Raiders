@@ -22,7 +22,8 @@ clip_paths = {
 "throw": "res://assets/character/asianboy/asianboy_throw.glb",
 "sit_idle": "res://assets/character/asianboy/asianboy_sitidle.glb",
 "sit_idle_2": "res://assets/character/asianboy/asianboy_sitidle2.glb",
-"sit_idle_3": "res://assets/character/asianboy/asianboy_sitidle3.glb"
+"sit_idle_3": "res://assets/character/asianboy/asianboy_sitidle3.glb",
+"crouch": "res://assets/character/asianboy/asianboy_crouch.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
@@ -38,7 +39,8 @@ clip_anim_names = {
 "throw": "Armature|baseball_pitching|baselayer",
 "sit_idle": "Armature|Sit_Finger_Wag_No|baselayer",
 "sit_idle_2": "Armature|Sit_Shout_Hands_on_Mouth|baselayer",
-"sit_idle_3": "Armature|Sit_Thumbs_Up_Right|baselayer"
+"sit_idle_3": "Armature|Sit_Thumbs_Up_Right|baselayer",
+"crouch": "Armature|CrouchLookAroundBow|baselayer"
 }
 model_scale = 2.7
 scale_mult = 1.10
@@ -49,7 +51,7 @@ has_jump = true
 sit_raise = 1.1
 sit_forward = 2.2
 clip_trims = {
-"jump": 0.7,
+"jump": 1.47,
 "sit": 1.3,
 "sit_exit": 1.4,
 "throw": 1.25

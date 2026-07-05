@@ -20,7 +20,8 @@ clip_paths = {
 "jump": "res://assets/character/indianboy/indianboy_jump.glb",
 "sit": "res://assets/character/indianboy/indianboy_sit.glb",
 "sit_exit": "res://assets/character/indianboy/indianboy_stand.glb",
-"sit_idle": "res://assets/character/indianboy/indianboy_sitidle.glb"
+"sit_idle": "res://assets/character/indianboy/indianboy_sitidle.glb",
+"crouch": "res://assets/character/indianboy/indianboy_crouch.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
@@ -34,7 +35,8 @@ clip_anim_names = {
 "jump": "Armature|Regular_Jump|baselayer",
 "sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
 "sit_exit": "Armature|Sit_to_Stand_Transition_M|baselayer",
-"sit_idle": "Armature|Sit_Thumbs_Up_Right|baselayer"
+"sit_idle": "Armature|Sit_Thumbs_Up_Right|baselayer",
+"crouch": "Armature|CrouchLookAroundBow|baselayer"
 }
 model_scale = 2.7
 scale_mult = 1.06
@@ -44,7 +46,7 @@ run_variant_keys = PackedStringArray("run", "run_fast", "run_03")
 
 clip_trims = {
 "throw": 1.25,
-"jump": 0.5,
+"jump": 0.53,
 "sit": 0.1,
 "sit_exit": 0.55
 }

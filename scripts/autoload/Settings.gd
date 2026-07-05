@@ -36,6 +36,15 @@ var graphics_preset := 1:
 var fov_first_person := 70.0        # FOV in first person (degrees)
 var fov_third_person := 62.0        # FOV in third person (degrees)
 
+## Actions the player may rebind (pause and debug cam stay fixed so nobody can
+## soft-lock themselves out of the menu).
+const REBINDABLE := ["move_forward", "move_back", "move_left", "move_right",
+	"sprint", "jump", "crouch", "interact", "revive", "toggle_cam",
+	"throw_ball", "pass_ball", "cycle_lock", "catch_qte"]
+# action -> serialized event dict ({"t":"key","code":int} / {"t":"mouse","btn":int}
+# / {"t":"none"} for deliberately unbound). Empty dict = project defaults.
+var keybinds := {}
+
 func _ready() -> void:
 	load_settings()
 	apply_runtime()
@@ -51,6 +60,11 @@ func load_settings() -> void:
 	# granular values below overwrite that batch — so custom tweaks survive restarts
 	graphics_preset = cfg.get_value("video", "graphics_preset", graphics_preset)
 	render_scale = cfg.get_value("video", "render_scale", render_scale)
+	# keybinds load + apply to the live InputMap
+	if cfg.has_section("keybinds"):
+		for action in cfg.get_section_keys("keybinds"):
+			keybinds[action] = cfg.get_value("keybinds", action)
+	_apply_keybinds()
 	sprint_fx = cfg.get_value("gameplay", "sprint_fx", sprint_fx)
 	mouse_sensitivity = cfg.get_value("gameplay", "mouse_sensitivity", mouse_sensitivity)
 	show_nametags = cfg.get_value("gameplay", "show_nametags", show_nametags)
@@ -79,6 +93,8 @@ func save_settings() -> void:
 	cfg.set_value("audio", "welcome_volume", welcome_volume)
 	cfg.set_value("audio", "music_volume_menu", music_volume_menu)
 	cfg.set_value("audio", "music_volume_game", music_volume_game)
+	for action in keybinds.keys():
+		cfg.set_value("keybinds", action, keybinds[action])
 	cfg.set_value("video", "graphics_preset", graphics_preset)
 	cfg.set_value("video", "render_scale", render_scale)
 	cfg.set_value("video", "grass_quality", grass_quality)
@@ -174,3 +190,91 @@ func apply_runtime_video() -> void:
 	# after render scale). Toggles every directional light in the scene.
 	for l in root.find_children("*", "DirectionalLight3D", true, false):
 		(l as DirectionalLight3D).shadow_enabled = shadow_quality > 0
+
+
+# ---------------------------------------------------------------- keybinds ----
+
+## Turn an input event into our small serializable dict (or empty if unsupported).
+func serialize_event(ev: InputEvent) -> Dictionary:
+	if ev is InputEventKey:
+		var k := ev as InputEventKey
+		return {"t": "key", "code": int(k.physical_keycode if k.physical_keycode != 0 else k.keycode)}
+	if ev is InputEventMouseButton:
+		return {"t": "mouse", "btn": int((ev as InputEventMouseButton).button_index)}
+	return {}
+
+func _event_from(d: Dictionary) -> InputEvent:
+	match str(d.get("t", "")):
+		"key":
+			var k := InputEventKey.new()
+			k.physical_keycode = int(d.get("code", 0)) as Key
+			return k
+		"mouse":
+			var m := InputEventMouseButton.new()
+			m.button_index = int(d.get("btn", 1)) as MouseButton
+			return m
+	return null
+
+## Human-readable label for an action's CURRENT binding.
+func bind_label(action: String) -> String:
+	var evs := InputMap.action_get_events(action)
+	if evs.is_empty():
+		return "— unbound —"
+	var ev := evs[0]
+	if ev is InputEventKey:
+		var k := ev as InputEventKey
+		var code: Key = k.physical_keycode if k.physical_keycode != 0 else k.keycode
+		return OS.get_keycode_string(code)
+	if ev is InputEventMouseButton:
+		match (ev as InputEventMouseButton).button_index:
+			MOUSE_BUTTON_LEFT: return "Mouse Left"
+			MOUSE_BUTTON_RIGHT: return "Mouse Right"
+			MOUSE_BUTTON_MIDDLE: return "Mouse Middle"
+			_: return "Mouse " + str((ev as InputEventMouseButton).button_index)
+	return ev.as_text()
+
+## Which rebindable action currently uses this event (for conflict handling).
+func action_using(ev: InputEvent) -> String:
+	var want := serialize_event(ev)
+	if want.is_empty():
+		return ""
+	for action in REBINDABLE:
+		for e in InputMap.action_get_events(action):
+			if serialize_event(e) == want:
+				return action
+	return ""
+
+## Bind `ev` to `action`, stealing it from any conflicting action. Applies to the
+## live InputMap immediately and persists. Returns the action it was stolen from
+## ("" if none) so the UI can show both rows updating.
+func rebind(action: String, ev: InputEvent) -> String:
+	var stolen := action_using(ev)
+	if stolen == action:
+		stolen = ""
+	if stolen != "":
+		InputMap.action_erase_events(stolen)
+		keybinds[stolen] = {"t": "none"}
+	InputMap.action_erase_events(action)
+	InputMap.action_add_event(action, ev)
+	keybinds[action] = serialize_event(ev)
+	save_settings()
+	return stolen
+
+## Restore every binding to the project defaults and forget custom binds.
+func reset_keybinds() -> void:
+	InputMap.load_from_project_settings()
+	keybinds = {}
+	save_settings()
+
+func _apply_keybinds() -> void:
+	for action in keybinds.keys():
+		if not InputMap.has_action(action):
+			continue
+		var d: Dictionary = keybinds[action]
+		if str(d.get("t", "")) == "none":
+			InputMap.action_erase_events(action)
+			continue
+		var ev := _event_from(d)
+		if ev != null:
+			InputMap.action_erase_events(action)
+			InputMap.action_add_event(action, ev)

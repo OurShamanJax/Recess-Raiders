@@ -176,27 +176,90 @@ func _add_option(parent: VBoxContainer, key: String, label: String, items: Array
 	_ctl[key] = opt
 
 ## Read-only list of the current key bindings (rebindable later).
+# --- rebindable keys UI ----------------------------------------------------
+# Click a binding -> "Press any key..." -> next key/mouse press binds it (Esc
+# cancels). Conflicts are stolen: the other action shows "— unbound —" in red.
+# Changes apply IMMEDIATELY and persist (no Apply needed for keys).
+
+const _BIND_LABELS := {
+	"move_forward": "Move Forward", "move_back": "Move Back",
+	"move_left": "Move Left", "move_right": "Move Right",
+	"sprint": "Sprint", "jump": "Jump", "crouch": "Crouch",
+	"interact": "Interact / Tag / Sit", "revive": "Revive Teammate",
+	"toggle_cam": "Toggle Camera", "throw_ball": "Throw",
+	"pass_ball": "Pass", "cycle_lock": "Cycle Lock-On Target",
+	"catch_qte": "Catch (timing press)",
+}
+var _bind_buttons := {}          # action -> Button
+var _capture_action := ""        # non-empty while waiting for a key press
+
 func _add_keybind_list(parent: VBoxContainer) -> void:
 	var note := Label.new()
-	note.text = "Current controls (rebinding coming soon):"
+	note.text = "Click a binding, then press the new key (Esc cancels). Applies instantly."
+	note.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
 	parent.add_child(note)
-	var binds := [
-		["Move", "W A S D"], ["Sprint", "Shift"], ["Jump", "Space"],
-		["Crouch", "C"], ["Tag / Throw", "Left Click"], ["Interact / Tag", "E"],
-		["Revive", "R"], ["Pass", "Tab"], ["Cycle Target", "Tab"],
-		["Pause", "Esc"], ["Toggle Camera", "V"], ["Debug Cam", "N"],
-	]
-	for b in binds:
+	for action in Settings.REBINDABLE:
 		var row := HBoxContainer.new()
 		var k := Label.new()
-		k.text = b[0]
+		k.text = _BIND_LABELS.get(action, action)
 		k.custom_minimum_size = Vector2(300, 0)
 		row.add_child(k)
-		var v := Label.new()
-		v.text = b[1]
-		v.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
-		row.add_child(v)
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(200, 36)
+		btn.text = Settings.bind_label(action)
+		btn.pressed.connect(_begin_capture.bind(action))
+		_bind_buttons[action] = btn
+		row.add_child(btn)
 		parent.add_child(row)
+	var pause_note := Label.new()
+	pause_note.text = "Pause is fixed to Esc."
+	pause_note.add_theme_color_override("font_color", Color(1, 1, 1, 0.45))
+	parent.add_child(pause_note)
+	var reset := Button.new()
+	reset.text = "Reset to Defaults"
+	reset.custom_minimum_size = Vector2(220, 40)
+	reset.pressed.connect(_reset_binds)
+	parent.add_child(reset)
+
+func _begin_capture(action: String) -> void:
+	# cancel any previous half-finished capture display
+	if _capture_action != "" and _bind_buttons.has(_capture_action):
+		(_bind_buttons[_capture_action] as Button).text = Settings.bind_label(_capture_action)
+	_capture_action = action
+	(_bind_buttons[action] as Button).text = "Press any key..."
+
+func _reset_binds() -> void:
+	_capture_action = ""
+	Settings.reset_keybinds()
+	for action in _bind_buttons.keys():
+		(_bind_buttons[action] as Button).text = Settings.bind_label(action)
+
+func _input(event: InputEvent) -> void:
+	if _capture_action == "":
+		return
+	# swallow everything while capturing so focused buttons don't react
+	if event is InputEventKey and (event as InputEventKey).pressed:
+		get_viewport().set_input_as_handled()
+		var key := event as InputEventKey
+		if key.physical_keycode == KEY_ESCAPE or key.keycode == KEY_ESCAPE:
+			# cancel
+			(_bind_buttons[_capture_action] as Button).text = Settings.bind_label(_capture_action)
+			_capture_action = ""
+			return
+		_finish_capture(key)
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		get_viewport().set_input_as_handled()
+		_finish_capture(event)
+
+func _finish_capture(ev: InputEvent) -> void:
+	var action := _capture_action
+	_capture_action = ""
+	var stolen := Settings.rebind(action, ev)
+	(_bind_buttons[action] as Button).text = Settings.bind_label(action)
+	if stolen != "" and _bind_buttons.has(stolen):
+		var sb := _bind_buttons[stolen] as Button
+		sb.text = Settings.bind_label(stolen)   # "— unbound —"
+		sb.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and GameState.phase == GameState.Phase.PLAYING and not GameState.menu_open:

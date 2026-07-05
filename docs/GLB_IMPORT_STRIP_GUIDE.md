@@ -28,6 +28,12 @@ optional and only worth it later.
 
 ## Method A — import each clip GLB as animation-only (recommended, no Blender)
 
+> ⚠️ **CRITICAL: NEVER run the strip script on a `*_base.glb`.** The strip removes
+> meshes/materials — correct for clips, fatal for the base. A stripped base = an
+> INVISIBLE character everywhere (blank headshot, empty preview, invisible in-game,
+> no NPCs) with NO console error, because the file loads fine, it just has no
+> geometry. The base is a plain unstripped copy of the Meshy Character_output.glb.
+
 Do this for **every clip GLB that is NOT a `*_base.glb`**. The base GLBs keep their
 mesh; only the clip GLBs get stripped.
 

@@ -308,6 +308,62 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
 
+**Blueboy sit ROOT-CAUSED (not tuning).** Two blind offset guesses failed because the real issue was baked
+root motion: blueboy sit clip ended with hips at Z=-63 vs the working models' ~-49 (his sit anim slides him
+13 units further back). Fix = normalize the CLIPS to the working baseline (asianboy sit-end Z=-49): shifted
+blueboy_sit end, blueboy_stand start, and blueboy_sitidle mean to match, correcting X/Z only (left Y sit-down
+height alone). Then standard offsets (sit_raise 1.0, sit_forward 1.4) place him like everyone else. LESSON:
+when one model sits wrong and offset-nudging fights back, MEASURE its sit-clip hip end vs a working model —
+baked root-motion divergence is the cause, normalize the clip, don't chase offset numbers.
+
+**Throw double-QTE fix + jump trim correction.** DOUBLE-QTE: hitting the throw QTE fires _begin_throw which
+starts the anim windup but the ball stays in hand for THROW_ANIM_RELEASE_DELAY (0.38s). The same mouse-click
+that resolved the QTE was re-read by PlayerController as a fresh throw press -> _request_throw opened a SECOND
+QTE on the already-committed ball -> it "fumbled". Fix: _request_throw early-returns while
+_pending_release_timer > 0 (throw already committed, ignore until ball leaves). JUMP TRIM (final): physics launch is INSTANT (no wind-up), so any anticipation crouch in the clip desyncs —
+the body is airborne while the anim legs still crouch. Fix: trim each jump clip to its LIFT-OFF frame (Hips-Y
+climbing back up through standing height, just after the crouch dip): blueboy/asianboy (Jump_with_Arms_Open)
+1.47, girl/indian (Regular_Jump) 0.53. Anim now starts with legs extending upward = matches instant launch.
+Tradeoff: loses the crouch anticipation, but correct given no physics wind-up (adding a jump delay would feel
+sluggish). For any new jump clip: measure Hips-Y, trim to where it crosses back up through base after the dip.
+
+**STRIP PIPELINE HAZARD (learned the hard way):** the mesh-strip script must run ONLY on animation clips,
+NEVER on the base model. The base needs its mesh+materials to be visible; stripping it = invisible character
+everywhere (blank headshot, empty preview, invisible in-game, no NPCs — and NO console error, since the file
+loads fine, it just has no geometry). Base model = plain copy of the Meshy Character_output.glb, unstripped.
+Only the *_walk/run/jump/etc clips get stripped. (Blueboy base was accidentally stripped to mesh=0; fixed by
+re-copying the raw export.)
+
+**Regular Boy Blue — full model replacement.** New pack (Meshy Wide_Open_Arms, 24 joints) REPLACES the old
+boy_*.glb with assets/character/blueboy/blueboy_*.glb — now a COMPLETE character (walk/run/run_fast/alert/
+dead/arise/jump/sit/sit_exit/sit_idle/crouch/throw). Vetting caught heavy Meshy drift: jump had +257 Z (de-
+drifted to loop in place), walking_2 +127 (SKIPPED — used clean Walking instead), sit-idle rebased onto sit-
+end hips (bench-offset fix), Dead/Arise/sit keep their one-shot drift (intended, blended out). run_fast +
+run variants enabled. trims jump 0.65/sit 0.2/sit_exit 0.3/throw 1.25, cut throw 1.1, sit_raise 1.0/forward
+1.6 (BLIND — tune from playtest). OLD FILES ORPHANED: assets/character/boy_{base,alert,arise,dead,run,walk}.glb
+must be deleted on the user disk (deltas cannot remove files) — del commands given.
+
+**Crouch state (cosmetic) + coach DROPPED.** LESSON (2nd occurrence): python str.replace patches MUST verify each replacement landed (grep the result),
+not just print success — the crouch STATE block silently missed its anchor (Vector2 coords differed) while the
+API/guards landed, producing runtime travel-to-missing-state errors. Crouch clips (CrouchLookAroundBow, 5.87s, verified zero drift +
+clean scales) imported for girl/asianboy/indianboy. Rig: _has_crouch, held looping "crouch" state,
+IMMEDIATE transitions both ways, set_crouching(on) API (guards dead/seated), _crouched hold-guard in
+set_locomotion (like _seated), cleared in play_dead. Actor drives it from `crouching` before set_locomotion.
+NO gameplay effects (no stealth, no tag interaction — explicit user design call). Models without the clip
+ignore set_crouching. Movement while crouched slides in the pose (no crouch-walk clip exists) — acceptable
+cosmetic v1. COACH REMASTER: all pitched directions rejected by user; item DROPPED from the roadmap.
+
+**Rebindable keys (full system).** Settings.REBINDABLE (14 actions; pause + debug cam deliberately fixed so
+nobody soft-locks the menu). Persistence: keybinds dict action->{"t":"key","code":physical_keycode} /
+{"t":"mouse","btn":idx} / {"t":"none"} (deliberately unbound after a steal), saved in cfg [keybinds], applied
+to the live InputMap in load_settings via _apply_keybinds. API: rebind(action, ev) -> stolen_action (conflict
+STEALS the key, the losing action goes unbound + its UI row turns red), bind_label(), action_using(),
+reset_keybinds() (InputMap.load_from_project_settings). UI (PauseMenu Key Bindings tab, replaced the read-only
+list): click -> "Press any key..." -> _input() capture (runs BEFORE _unhandled_input so Esc CANCELS capture
+without closing the menu; set_input_as_handled swallows focus-button reactions); mouse buttons bindable
+(throw = LMB by default); Reset to Defaults button. Keybinds apply INSTANTLY (not via the Apply/pending flow).
+Game origin note: the design homages "2 Berry", the user's elementary-school recess game (README credits it).
+
 **Height pulse on movement + splash race + tag responsiveness.** (1) HEIGHT PULSE: both girls' WALK clips
 carried a constant Hips SCALE of 1.176 (Meshy artifact) — idle 1.0, blend into walk = grow 18%, blend to run =
 shrink. Node-level scale lock could not see it (bone scale). Fixed: channels neutralized to 1.0 in both walk

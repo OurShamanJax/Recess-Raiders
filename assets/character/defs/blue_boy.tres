@@ -7,23 +7,49 @@ script = ExtResource("1")
 id = &"blue_boy"
 display_name = "Regular Boy Blue"
 team = "blue"
-base_model_path = "res://assets/character/boy_base.glb"
+base_model_path = "res://assets/character/blueboy/blueboy_base.glb"
 clip_paths = {
-"alert": "res://assets/character/boy_alert.glb",
-"arise": "res://assets/character/boy_arise.glb",
-"dead": "res://assets/character/boy_dead.glb",
-"run": "res://assets/character/boy_run.glb",
-"walk": "res://assets/character/boy_walk.glb"
+"alert": "res://assets/character/blueboy/blueboy_alert.glb",
+"arise": "res://assets/character/blueboy/blueboy_arise.glb",
+"crouch": "res://assets/character/blueboy/blueboy_crouch.glb",
+"dead": "res://assets/character/blueboy/blueboy_dead.glb",
+"jump": "res://assets/character/blueboy/blueboy_jump.glb",
+"run": "res://assets/character/blueboy/blueboy_run.glb",
+"run_fast": "res://assets/character/blueboy/blueboy_run_fast.glb",
+"sit": "res://assets/character/blueboy/blueboy_sit.glb",
+"sit_exit": "res://assets/character/blueboy/blueboy_stand.glb",
+"sit_idle": "res://assets/character/blueboy/blueboy_sitidle.glb",
+"throw": "res://assets/character/blueboy/blueboy_throw.glb",
+"walk": "res://assets/character/blueboy/blueboy_walk.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
 "arise": "Armature|Arise|baselayer",
+"crouch": "Armature|CrouchLookAroundBow|baselayer",
 "dead": "Armature|Dead|baselayer",
+"jump": "Armature|Jump_with_Arms_Open|baselayer",
 "run": "Armature|running|baselayer",
+"run_fast": "Armature|RunFast|baselayer",
+"sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
+"sit_exit": "Armature|Sit_to_standTransition_Female_2|baselayer",
+"sit_idle": "Armature|Sitting_Clap|baselayer",
+"throw": "Armature|baseball_pitching|baselayer",
 "walk": "Armature|walking_man|baselayer"
+}
+clip_trims = {
+"jump": 1.47,
+"sit": 0.2,
+"sit_exit": 0.3,
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
 }
 model_scale = 2.7
 scale_mult = 1.0
 facing_offset_deg = 0.0
-has_run_variants = false
-run_variant_keys = PackedStringArray("run")
+has_run_variants = true
+run_variant_keys = PackedStringArray("run", "run_fast")
+has_jump = true
+sit_raise = 1.0
+sit_forward = 2.2
