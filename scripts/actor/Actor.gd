@@ -33,6 +33,7 @@ var _interact_cooldown := 0.0
 var _sitting := false
 var _sit_pos := Vector3.ZERO
 var _sit_heading := 0.0         # facing while seated (from the bench's orientation)
+# standing spot and the seated spot over the transition, matching the animation so
 var _sit_cooldown := 0.0
 # While > 0 the player stays pinned after pressing E to stand, so the stand-up
 # animation can play before control returns. Only used for models with sit clips.
@@ -234,17 +235,16 @@ func _toggle_sit(bench: Node3D) -> void:
 		_sit_pos = Vector3(bp.x, global_position.y + seat_raise, bp.z) + fwd * fwd_off
 		global_position = _sit_pos
 		_y_vel = 0.0
-		# play the sit-down animation for models that have one (holds seated pose);
-		# other models keep the rigid stand until their sit clips are imported
+		# play the sit-down animation (now trimmed to start at the descent, so the
+		# legs drop straight onto the seat instead of hanging through the bench
+		# during a long standing phase)
 		if has_anim:
 			rig.play_sit()
 	else:
-		# standing up: play the stand animation and hold the player in place
-		# briefly so the motion reads before control returns. Models without sit
-		# clips release instantly (old behavior).
+		# standing up: play the stand animation, hold briefly so the rise reads
 		if rig != null and rig.has_sit():
 			rig.play_stand()
-			_stand_lock = 1.0
+			_stand_lock = 0.6
 	_sit_cooldown = 0.35
 
 ## Set or clear what this actor is carrying, and update the carrier-highlight
@@ -507,7 +507,8 @@ func _physics_process(delta: float) -> void:
 			if _stand_lock <= 0.0 and rig != null:
 				rig.end_sit()   # release the rig guard; locomotion resumes
 		if _sitting or _stand_lock > 0.0:
-			# hold the player pinned to the seat; no movement, no gravity drift
+			# hold the player pinned to the seat; the animation (trimmed to its
+			# descent/rise) provides the visible sit/stand motion.
 			global_position = _sit_pos
 			velocity = Vector3.ZERO
 			_move_vel = Vector2.ZERO

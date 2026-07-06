@@ -44,7 +44,7 @@ sit_raise = 0.9
 sit_forward = 1.4
 clip_trims = {
 "jump": 0.53,
-"sit": 0.4,
+"sit": 0.75,
 "sit_exit": 2.3,
 "throw": 1.25
 }

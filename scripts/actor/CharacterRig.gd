@@ -443,6 +443,12 @@ func _build_tree(_inst: Node) -> void:
 			t_sit_idle.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
 			t_sit_idle.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
 			sm.add_transition("sit", "sit_idle", t_sit_idle)
+			# ALSO a direct locomotion->sit_idle so play_sit() can jump straight to
+			# the seated pose without routing through (and playing) the "sit"
+			# transition clip, which mis-places the body on the bench.
+			var t_loco_idle := AnimationNodeStateMachineTransition.new()
+			t_loco_idle.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+			sm.add_transition("locomotion", "sit_idle", t_loco_idle)
 			var t_idle_stand := AnimationNodeStateMachineTransition.new()
 			t_idle_stand.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
 			sm.add_transition("sit_idle", "sit_exit", t_idle_stand)
@@ -588,7 +594,15 @@ func play_sit() -> void:
 	if not _has_sit or _tree == null or _is_dead or _state_machine == null:
 		return
 	_seated = true
-	_state_machine.travel("sit")
+	# Skip the "sit" transition clip and go STRAIGHT to the seated idle pose. The
+	# transition clip mis-places the body (teleports onto/through the bench back)
+	# before the idle snaps it right; jumping straight to the idle avoids that
+	# entirely — the seated pose is the correct one. Models without a sit_idle
+	# fall back to the transition clip (they just hold its final frame).
+	if _sit_idle_key != "":
+		_state_machine.travel("sit_idle")
+	else:
+		_state_machine.travel("sit")
 
 ## Play the stand-up clip. _seated stays true (guarding the state machine) until
 ## the Actor's stand lock expires and calls end_sit().

@@ -38,7 +38,7 @@ clip_anim_names = {
 }
 clip_trims = {
 "jump": 1.47,
-"sit": 0.2,
+"sit": 2.25,
 "sit_exit": 0.3,
 "throw": 1.25
 }

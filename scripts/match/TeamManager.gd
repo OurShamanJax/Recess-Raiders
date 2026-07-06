@@ -56,13 +56,17 @@ func _spawn(team: String, role: String, is_user: bool, id: int) -> Actor:
 	a.setup(team, role, is_user, id)
 	var back_z := 96.0 if team == "blue" else -96.0
 	a.spawn_pos = Vector3(0, 0, back_z)
-	# spread across the back line in two staggered rows so 14 don't overlap
+	# spread across the back line in two staggered rows so the team doesn't overlap.
+	# Columns scale with team size (ceil(size/2) per row) so the formation stays
+	# tidy whether it is 10 or 14 a side.
 	var per_team := Config.TEAM_SIZE
 	var slot := id % per_team
-	var grid_col := slot % 7
 	@warning_ignore("integer_division")
-	var row := slot / 7
-	var x := lerpf(-48.0, 48.0, float(grid_col) / 6.0)
+	var cols := (per_team + 1) / 2
+	var grid_col := slot % cols
+	@warning_ignore("integer_division")
+	var row := slot / cols
+	var x := lerpf(-48.0, 48.0, float(grid_col) / float(maxi(cols - 1, 1)))
 	var z := back_z - (2.0 if team == "blue" else -2.0) * float(row)
 	a.spawn_pos = Vector3(x, 0, z)
 	a.global_position = a.spawn_pos

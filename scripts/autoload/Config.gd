@@ -33,8 +33,8 @@ const REVIVE_RADIUS := 9.0          # teammate must be this close to revive a ta
 
 # Match
 const BALLS_PER_TEAM := 2           # footballs per side (from the brief)
-const GOAL_CONES_PER_TEAM := 14     # stealable goal cones per side (2 balls + 14 cones = 16 to win)
-const TEAM_SIZE := 14               # 14 v 14 (1 human + 13 AI vs 14 AI)
+const GOAL_CONES_PER_TEAM := 10     # stealable goal cones per side (2 balls + 10 cones = 12 to win) — scaled with the smaller roster
+const TEAM_SIZE := 10               # 10 v 10 (1 human + 9 AI vs 10 AI) — sized to the 110x200 field so it doesnt feel overcrowded
 
 # Revive (hybrid): wait for a teammate, but auto-return after this timeout.
 const REVIVE_AUTO_TIMEOUT := 30.0

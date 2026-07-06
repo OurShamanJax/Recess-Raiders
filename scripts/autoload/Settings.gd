@@ -45,6 +45,13 @@ const REBINDABLE := ["move_forward", "move_back", "move_left", "move_right",
 # / {"t":"none"} for deliberately unbound). Empty dict = project defaults.
 var keybinds := {}
 
+## Character progression: set of unlocked character ids. The two STARTER ids (one
+## per team) are always unlocked; winning a match unlocks the next locked one.
+## Persisted so progress sticks between sessions.
+const STARTER_IDS := ["blue_boy", "red_asianboy"]
+var unlocked_characters := {}   # id -> true (a set)
+var debug_unlock_all := false   # N key in the selector flips this (test aid)
+
 func _ready() -> void:
 	load_settings()
 	apply_runtime()
@@ -65,6 +72,9 @@ func load_settings() -> void:
 		for action in cfg.get_section_keys("keybinds"):
 			keybinds[action] = cfg.get_value("keybinds", action)
 	_apply_keybinds()
+	var saved_unlocks: Array = cfg.get_value("progression", "unlocked", [])
+	for uid in saved_unlocks:
+		unlocked_characters[String(uid)] = true
 	sprint_fx = cfg.get_value("gameplay", "sprint_fx", sprint_fx)
 	mouse_sensitivity = cfg.get_value("gameplay", "mouse_sensitivity", mouse_sensitivity)
 	show_nametags = cfg.get_value("gameplay", "show_nametags", show_nametags)
@@ -95,6 +105,7 @@ func save_settings() -> void:
 	cfg.set_value("audio", "music_volume_game", music_volume_game)
 	for action in keybinds.keys():
 		cfg.set_value("keybinds", action, keybinds[action])
+	cfg.set_value("progression", "unlocked", unlocked_characters.keys())
 	cfg.set_value("video", "graphics_preset", graphics_preset)
 	cfg.set_value("video", "render_scale", render_scale)
 	cfg.set_value("video", "grass_quality", grass_quality)
@@ -278,3 +289,28 @@ func _apply_keybinds() -> void:
 		if ev != null:
 			InputMap.action_erase_events(action)
 			InputMap.action_add_event(action, ev)
+
+
+# ------------------------------------------------------------- progression ----
+
+## Is this character playable? Starters + earned unlocks + the debug override.
+func is_character_unlocked(id: String) -> bool:
+	if debug_unlock_all:
+		return true
+	if id in STARTER_IDS:
+		return true
+	return unlocked_characters.has(id)
+
+## Permanently unlock a character (winning a match). Returns true if it was newly
+## unlocked (so the caller can show a "new character!" flourish later).
+func unlock_character(id: String) -> bool:
+	if id in STARTER_IDS or unlocked_characters.has(id):
+		return false
+	unlocked_characters[id] = true
+	save_settings()
+	return true
+
+## Toggle the debug "unlock all" (N key in the selector). When turning OFF, the
+## earned + starter unlocks remain; only the debug override is cleared.
+func toggle_debug_unlock_all() -> void:
+	debug_unlock_all = not debug_unlock_all

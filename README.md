@@ -1,6 +1,6 @@
 # Recess Raiders — V1
 
-**Recess Raiders** is a 3D schoolyard showdown: **14 vs 14** capture-the-loot chaos.
+**Recess Raiders** is a 3D schoolyard showdown: **10 vs 10** capture-the-loot chaos.
 Two teams of kids face off across a field split by a wall of cones. Raid the enemy
 half, snatch their cones and footballs, and haul the loot home before you get
 tagged. **Steal their entire stash to win.**
@@ -9,7 +9,7 @@ tagged. **Steal their entire stash to win.**
 
 ## Features
 
-- **14v14 matches** — you plus 13 AI teammates against a full AI team. Every kid
+- **10v10 matches** — you plus 9 AI teammates against a full AI team. Every kid
   has its own vision cone and brain: they chase, raid, defend, grab, pass, and
   rescue on their own.
 - **8 playable kids** across both teams, each a distinct character model, picked
@@ -19,6 +19,7 @@ tagged. **Steal their entire stash to win.**
   helped back up, and even sitting on the sideline benches.
 - **Skill-based throwing** — a timing meter decides whether your throw flies true
   or fumbles loose. Lock onto a teammate to fire a guided pass.
+- **Unlockable roster** — start with one kid per team; win matches to unlock more.
 - **Smart tagging** — the game tags who you're *looking at*, not just whoever's
   closest. Jumping over a tagger dodges the tag. Freshly revived kids get a moment
   of protection. Tags land with a punchy hit-pause and impact burst; jumps kick up

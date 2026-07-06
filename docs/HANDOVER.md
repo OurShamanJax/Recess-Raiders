@@ -9,8 +9,9 @@ the "V5 / audio + settings + structural terrain" work cycle, then updated with t
 
 ## 1. What the game is
 
-**Recess Raiders** — a 3D 14-v-14 schoolyard "capture the loot" game built in
-**Godot 4.6** with **GDScript**. One human player + 13 AI on the blue team vs 14 AI on red.
+**Recess Raiders** — a 3D 10-v-10 schoolyard "capture the loot" game built in
+**Godot 4.6** with **GDScript**. One human player + 9 AI on your team vs 10 AI opponents.
+(Team size lives in Config.TEAM_SIZE; was 14, reduced to 10 to fit the 110x200 field.)
 
 Core loop ("the omelet" — do not lose sight of this):
 - Two teams of kids on a field split at the midline (Z=0).
@@ -84,6 +85,14 @@ Input actions live in `project.godot`: WASD, Shift sprint, Space jump, E interac
 LeftClick throw, RightClick pass, V camera-cycle, **N debug fly-cam** (physical_keycode 78), Tab/Esc pause.
 
 ---
+
+## 9. Orphaned files (safe to delete)
+
+The loose `assets/character/boy_*.glb` files (boy_base/alert/arise/dead/run/walk, ~37 MB)
+are the OLD Regular Boy Blue, fully replaced by the `blueboy/` folder and de-referenced
+in code. Nothing loads them. They can be deleted from the user's disk (deltas can't
+delete files, so the user runs the `del` commands). Everything else on disk is live:
+all 8 character folders map to the 8 defs, and the `coach/` folder is used by Coach.gd.
 
 ## 4. The verification battery — RUN THIS BEFORE EVERY PACKAGE
 
@@ -307,6 +316,81 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 `_pending` via a `_ctl` id→control dict; commits only on Apply (`Settings.apply_pending`). Back bottom-left,
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
+
+**SIT-DOWN TRANSITION = skip it, jump straight to sit_idle (the ACTUAL fix).** The sit "transition" clip
+(Stand_to_Sit) mis-places the body (teleports onto/through the bench BACK) before the idle snaps it to the
+correct seat. Stand-up was always fine (plays from the correct sit_idle spot). FIX: play_sit() now travels
+directly to "sit_idle" instead of "sit", plus a NEW direct locomotion->sit_idle IMMEDIATE transition so
+travel() reaches it WITHOUT playing the misplacing "sit" clip. Models without a sit_idle fall back to "sit".
+Fixes all models with idle gestures (asianboy/blueboy/indianboy). Earlier trim/glide attempts were on the
+wrong clip. **SIT CLIP TRIM = the real transition-clip fix (Option A attempt 2).** The glide approach was WRONG: the leg
+clipping isn'''t about body-origin position, it'''s INTERNAL to the clip. The sit clip (4.8s) holds a STANDING pose
+(hipY=78, legs extended down) for ~2.7s, THEN descends to seated (hipY=50) at 2.7-3.3s. Old trims (0.1-0.4)
+started playback in that long standing phase -> legs hang through the bench for ~1.5s before descending. FIX:
+trim each sit clip to its DESCENT START so playback begins as the hips drop onto the seat: blueboy/indianboy
+2.25, asianboy 2.7, girl 0.75 (measure via Hips-Y: trim to just before Y leaves the standing plateau). Body is
+simple-pinned at _sit_pos again (glide reverted/removed). LESSON: for a stand->sit transition clip, always trim
+to where the hips actually start descending, not to frame ~0. On sit-down: _sit_from=
+standing pos, _sit_to=seat pos (_sit_pos), _sit_dur=0.9, _sit_t ramps 0->1 with ease-out, body lerps along it;
+after settle holds at _sit_pos. On stand-up: _sit_from=seat, _sit_to=ground (seat minus sit_raise), _sit_dur=
+0.7, _stand_lock=0.7; after settle holds at ground then end_sit->locomotion. _sit_t defaults 1.0 so non-sitting
+actors are untouched; on_tagged resets _sit_t=1.0 to cancel a mid-transition glide. Durations (0.9/0.7) are
+tuned constants matching the visible descent/rise (NOT full clip length: sit clip is 4.8s but descent ~0.9s).
+If a future model'''s transition still clips, tune _sit_dur to its descent, not the offsets. This is the proper
+fix that superseded the earlier _stand_lock timing nudges.
+
+**Sit-idle REBUILT (3rd approach, correct) + locks both teams + card order.** SIT-IDLE: frame-grafting leg
+poses onto mismatched clips kept producing jank (legs OR torso wrong). New approach: REBUILD each idle from
+the sit clip'''s final SEATED pose for EVERY bone, then overlay ONLY the arm chain (Left/Right Shoulder/Arm/
+ForeArm/Hand + Spine/Neck/Head) from the original gesture. Whole body = known-good seated pose, only arms
+gesture -> deformation IMPOSSIBLE. Verified arms move (0.34-0.48 range), legs+Hips frozen 0.0. /tmp/rebuild_idle.py
+is the reusable tool. LOCKS: _pick_team_in_place now sets lock.visible = not unlocked (was: mine and not
+unlocked) so 🔒 shows on BOTH teams''' locked cards, not just the selected team. CARD ORDER: explicit priority
+dict (blue_boy=0, blue_asiangirl=1, ...) replaces alphabetical sort in BOTH the selector grid and
+GameState._award_unlock, so Regular Boy Blue is slot 1, Asian Girl Blue slot 2, and unlocks follow the same
+visible order.
+
+**Sit-idle torso break FIXED + CHARACTER UNLOCK SYSTEM.** TORSO: my first leg-graft froze the Hips bone too,
+which locked the torso rigid (broken upper body). Re-stripped the ORIGINAL idle clips (RedBoyAsianUpdateAnim.zip)
+and grafted ONLY the 8 leg bones (L/R UpLeg/Leg/Foot/ToeBase) — NOT Hips — so legs stay seated while Hips+torso+
+arms keep the gesture. Verified: arms motion range ~0.6, Hips free, legs 0.0 (frozen). RULE: leg-graft excludes
+Hips. UNLOCK SYSTEM: Settings.unlocked_characters set (persisted [progression]/unlocked), STARTER_IDS=[blue_boy,
+red_asianboy] always unlocked, is_character_unlocked()/unlock_character()/toggle_debug_unlock_all(). Selector:
+lock 🔒 overlay + dim on locked cards, _select_model_card blocks locked picks, _pick_team_in_place greys locked +
+default-selects first UNLOCKED, _refresh_lock_states re-applies. N key (Step.MODEL only) toggles debug unlock-all
+then relocks unearned. WIN HOOK: GameState._finish -> if team==user_team, _award_unlock() unlocks next locked in
+roster order. ABILITIES: deliberately NOT added (user didn'''t want to risk the core loop) — unlocks are cosmetic
+variety only. Match starts with 1 playable per side (the starters).
+
+**Asianboy sit-idle leg deform + splash-skip title glitch.** LEGS: the 3 retained sit-idle clips (old model)
+had leg-bone quaternions incompatible with the NEW model's sit pose (LeftUpLeg sit=(-0.4,-0.55,0.23,0.7) vs
+idles=(0.49,0.45,-0.67,0.33), nearly inverted) -> twisted legs on sit->sit_idle. FIX: grafted the new sit
+clip'''s LAST-frame seated leg pose onto EVERY frame of all 3 idles''' leg bones (9 bones: Hips + L/R
+UpLeg/Leg/Foot/ToeBase), freezing legs to seated while keeping the upper-body gesture (clap/wave/thumbs). Idles
+now all show (-0.82,-0.52,-0.07,0.23). RULE: when retaining sit-idles across a model swap, verify their leg
+quaternions match the new sit clip; graft if not. SPLASH SKIP: skipping after the R'''s fall handed the menu
+only the 2 R'''s (tail letters + underline created LATER in _run). FIX: stashed title layout as members
+(_full_text/_letter_xs/_ground_y/_total_w/_center_x + _tail_built/_underline_built flags); _finish() now calls
+_complete_title_instantly() which spawns any missing tail letters (1-6, 8-13) at final pos/full opacity and the
+underline at full width before the flight handoff. Title handed to menu is now always complete.
+
+**Hoodie Boy Red — full model replacement.****Hoodie Boy Red — full model replacement.** New Meshy pack (Red_Hoodie_Kid) swapped into the SAME asianboy/
+folder & filenames, so headshots/preview/field auto-resolve via the def (no orphans, no ref updates). Vetting
+caught: jump +244 Z drift (de-drifted), walking_2 +121 (skipped, used clean Walking), Dead/Arise/sit one-shot
+drift kept. Base copied UNSTRIPPED (mesh=1). New skeleton compatible with the retained 3 sit-idles (within 1
+unit of new sit-end, no rebase needed). Anim names re-synced to actual clip contents (walking_man,
+Sit_to_standTransition_Female_2, Run_02). Jump trim -> 1.47 lift-off. Sit ends Z=-48.3 (on baseline, sits
+clean). All 8 defs integrity-clean.
+
+**FP model-hide + 10v10 rebalance.** FP MODEL: first person now hides the player rig (rig.visible=false in
+_update_fp, re-shown in _update_third) — the jump anim leaned the torso into the near view. VERIFIED SAFE for
+AI: Perception.visible_enemies is pure physics (cone angle on global_position + _has_line_of_sight raycast on
+collision_mask 2 border cones only); it has ZERO dependency on the Godot render-visible flag. Tagging/LOS/
+collision all use positions + physics bodies, never rig.visible. So hiding the mesh is purely cosmetic.
+ROSTER: TEAM_SIZE 14->10 (field is 110x200, 14 felt overcrowded), GOAL_CONES_PER_TEAM 14->10 (win = 12: 2
+balls + 10 cones). Spawn formation columns now scale = ceil(size/2) per row (was hardcoded 7-wide). Selector
+grid (MODEL_SLOTS=28) is INDEPENDENT of team size — it shows character MODELS not player count, so untouched.
+README updated to 10v10. Product goal: polish toward a \$5 paid release.
 
 **Blueboy sit ROOT-CAUSED (not tuning).** Two blind offset guesses failed because the real issue was baked
 root motion: blueboy sit clip ended with hips at Z=-63 vs the working models' ~-49 (his sit anim slides him

@@ -389,7 +389,19 @@ func _build_model_grid() -> void:
 	var ordered: Array = []
 	for tm in ["blue", "red"]:
 		var td: Array = CharacterDefs.defs_for_team(tm)
-		td.sort_custom(func(da, db): return String(da.id) < String(db.id))
+		# Explicit display order: the team's STARTER leads (it's the first thing you
+		# can play), then a curated order, then any others alphabetically. Regular
+		# Boy Blue is slot 1 on blue, Asian Girl Blue slot 2.
+		var priority := {
+			"blue_boy": 0, "blue_asiangirl": 1, "blue_indianboy": 2, "blue_girl": 3,
+			"red_asianboy": 0, "red_boy": 1, "red_fatboy": 2, "red_girl": 3,
+		}
+		td.sort_custom(func(da, db):
+			var pa: int = priority.get(String(da.id), 99)
+			var pb: int = priority.get(String(db.id), 99)
+			if pa != pb:
+				return pa < pb
+			return String(da.id) < String(db.id))
 		for d in td:
 			ordered.append([String(d.id), d.display_name, tm])
 	var real_count: int = ordered.size()
@@ -544,18 +556,37 @@ func _pick_team_in_place(tm: String) -> void:
 	if _red_btn != null:
 		_red_btn.modulate = Color(1, 1, 1, 1)
 		_style_team_button(_red_btn, Color(0.95, 0.4, 0.35), tm == "red")
-	# enable this team's cards, grey/disable the other team's
+	# enable this team's cards, grey/disable the other team's + locked ones
 	var first_id := ""
 	for cid in _model_cards.keys():
 		var c: Button = _model_cards[cid]
 		var mine: bool = _card_team.get(cid, "") == tm
-		c.disabled = not mine
-		c.modulate = Color(1, 1, 1, 1) if mine else Color(0.5, 0.5, 0.55, 0.6)
-		if mine and first_id == "":
+		var unlocked: bool = Settings.is_character_unlocked(cid)
+		var playable: bool = mine and unlocked
+		c.disabled = not playable
+		# other team = greyed; locked (my team) = dimmer + lock icon; playable = full
+		if not mine:
+			c.modulate = Color(0.5, 0.5, 0.55, 0.6)
+		elif not unlocked:
+			c.modulate = Color(0.55, 0.55, 0.6, 0.85)
+		else:
+			c.modulate = Color(1, 1, 1, 1)
+		var lock := c.get_node_or_null("Lock")
+		if lock != null:
+			# locks show on EVERY locked card, both teams — so switching team tabs
+			# doesn't make/hide locks and cause confusion. The other team's cards
+			# are still greyed via modulate above; the lock is purely the unlock state.
+			lock.visible = not unlocked
+		if playable and first_id == "":
 			first_id = cid
-	# select a default model from this team
+	# select a default (first UNLOCKED) model from this team
 	if first_id != "":
 		_select_model_card(first_id)
+
+## Re-apply lock visuals across all cards (after an N-key toggle or a win). Keeps
+## the current team's greying rules intact by just re-running the team pick.
+func _refresh_lock_states() -> void:
+	_pick_team_in_place(_team)
 
 ## Style a team button — full opacity always; the active one gets a bright thick
 ## border + filled background, the inactive one a subtler outline. This is how we
@@ -635,6 +666,19 @@ func _make_model_card(id: String, label: String, cw: float = 132.0, ch: float = 
 
 	# render the headshot into `tex` (deferred so the card is in-tree first)
 	_render_headshot.call_deferred(id, tex)
+
+	# lock overlay — a padlock glyph + dim scrim shown when this character isn't
+	# unlocked yet. Toggled live by _refresh_lock_states (team pick / N key / win).
+	var lock := Label.new()
+	lock.name = "Lock"
+	lock.text = "🔒"
+	lock.add_theme_font_size_override("font_size", int(ch * 0.34))
+	lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lock.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lock.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lock.visible = false
+	card.add_child(lock)
 	return card
 
 ## Card background style. highlight = hover pop (brighter), selected = accent
@@ -662,6 +706,9 @@ func _card_style(highlight: bool, selected: bool) -> StyleBoxFlat:
 	return s
 
 func _select_model_card(id: String) -> void:
+	# locked characters can't be selected — flash nothing, just ignore the click
+	if not Settings.is_character_unlocked(id):
+		return
 	_selected_model_id = id
 	# restyle all cards: only the selected one gets the gold outline
 	for cid in _model_cards.keys():
@@ -954,6 +1001,18 @@ func _find_anim_player(node: Node) -> AnimationPlayer:
 		if r != null:
 			return r
 	return null
+
+## Debug aid: N in the character selector toggles "unlock all" so every character
+## is playable for testing; pressing it again relocks everything not yet earned.
+func _input(event: InputEvent) -> void:
+	if _step != Step.MODEL:
+		return
+	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+		var k := event as InputEventKey
+		if k.physical_keycode == KEY_N or k.keycode == KEY_N:
+			Settings.toggle_debug_unlock_all()
+			_refresh_lock_states()
+			get_viewport().set_input_as_handled()
 
 func _on_preview_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:

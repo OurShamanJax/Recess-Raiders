@@ -210,6 +210,13 @@ func _update_orbit(delta: float) -> void:
 # --- FIRST PERSON ------------------------------------------------------------
 # Eye just in front of the face. Move basis = camera yaw (flattened). Aim = look.
 func _update_fp(p: Vector3) -> void:
+	# In first person the player's own model must be hidden — otherwise animated
+	# poses (especially the jump, which leans/raises the torso) poke the head and
+	# body into the camera's near view. Real FPS games hide the avatar; we do too.
+	# (Third-person re-shows it; see _update_third.)
+	if target != null and is_instance_valid(target) and "rig" in target and target.rig != null:
+		if target.rig.visible:
+			target.rig.visible = false
 	var look := Vector3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
 	var flat_fwd := Vector3(sin(yaw), 0.0, cos(yaw)).normalized()
 	# eye height is relative to the player's CURRENT Y so the camera rises/falls
@@ -224,6 +231,10 @@ func _update_fp(p: Vector3) -> void:
 # --- THIRD PERSON ------------------------------------------------------------
 # Locked over the RIGHT shoulder, behind the player along yaw. Move basis = yaw.
 func _update_third(p: Vector3, delta: float) -> void:
+	# make sure the model is visible in third person (FP hides it)
+	if target != null and is_instance_valid(target) and "rig" in target and target.rig != null:
+		if not target.rig.visible and not _debug_active:
+			target.rig.visible = true
 	var flat_fwd := Vector3(sin(yaw), 0.0, cos(yaw)).normalized()
 	var right := Vector3(-flat_fwd.z, 0.0, flat_fwd.x)   # forward × up (true right)
 	# head is relative to the player's CURRENT Y so the camera rises and falls

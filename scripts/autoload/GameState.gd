@@ -121,4 +121,28 @@ func set_counts(blue: int, red: int) -> void:
 func _finish(team: String) -> void:
 	phase = Phase.FINISHED
 	winner = team
+	# progression: winning on the player's team unlocks the next locked character
+	# (any team). Silent for now — the selector shows the new one next visit.
+	if team == user_team:
+		_award_unlock()
 	Events.match_won.emit(team)
+
+## Unlock the next still-locked character in the SAME order the selector shows
+## them (starter first, then curated), so unlocks arrive in a predictable sequence.
+func _award_unlock() -> void:
+	var priority := {
+		"blue_boy": 0, "blue_asiangirl": 1, "blue_indianboy": 2, "blue_girl": 3,
+		"red_asianboy": 0, "red_boy": 1, "red_fatboy": 2, "red_girl": 3,
+	}
+	for tm in ["blue", "red"]:
+		var defs: Array = CharacterDefs.defs_for_team(tm)
+		defs.sort_custom(func(a, b):
+			var pa: int = priority.get(String(a.id), 99)
+			var pb: int = priority.get(String(b.id), 99)
+			if pa != pb:
+				return pa < pb
+			return String(a.id) < String(b.id))
+		for d in defs:
+			if not Settings.is_character_unlocked(String(d.id)):
+				Settings.unlock_character(String(d.id))
+				return

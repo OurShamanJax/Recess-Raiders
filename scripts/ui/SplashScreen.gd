@@ -19,6 +19,15 @@ var _title_font_size := 84
 var _root: Control            # holds all splash visuals, faded out at the end
 var _letters: Array = []      # all letter labels, for cleanup
 var _done := false
+# title layout, stashed in _run() so _finish() can COMPLETE the title instantly
+# if the player skips mid-sequence (otherwise only the fallen R's hand off).
+var _full_text := ""
+var _letter_xs: Array = []
+var _ground_y := 0.0
+var _total_w := 0.0
+var _center_x := 0.0
+var _tail_built := false       # "ecess"/"aiders" letters created
+var _underline_built := false  # underline + trim created
 
 ## Delay before the welcome voice line starts. Computed from the clip's waveform:
 ## the VO says "Recess" at ~0.85s into the clip, and the splash letters emerge at
@@ -85,6 +94,13 @@ func _run() -> void:
 	for i in range(full.length()):
 		xs.append(cursor)
 		cursor += advances[i]
+	# stash layout so _finish() can COMPLETE the title instantly if the player
+	# skips mid-sequence (otherwise only the fallen R's hand off to the menu)
+	_full_text = full
+	_letter_xs = xs
+	_ground_y = ground_y
+	_total_w = total_w
+	_center_x = cx
 
 	# the two R's are at index 0 and index 7 ("Recess "=7 chars incl. space)
 	var r1_x: float = xs[0]
@@ -105,12 +121,14 @@ func _run() -> void:
 	# the second R settles. The R fall speed itself is untouched.)
 	_extend_tail_xs(full, xs, 1, 6, ground_y)     # "ecess" = indices 1..6
 	_extend_tail_xs(full, xs, 8, 13, ground_y)    # "aiders" = indices 8..13
+	_tail_built = true
 
 	await get_tree().create_timer(2.0).timeout
 	if _done: return
 	# underline clearly BELOW the glyphs (label positions by top-left; glyphs are
 	# ~fs tall, so 1.12*fs clears the descenders — matches the mockup).
 	_grow_underline(cx, ground_y + float(fs) * 1.12, total_w)
+	_underline_built = true
 
 	await get_tree().create_timer(1.4).timeout
 	if _done: return
@@ -218,6 +236,12 @@ func _finish() -> void:
 		return
 	_done = true
 
+	# If the player skipped before the title finished animating in, the tail
+	# letters and/or underline don't exist yet — the menu would adopt just the
+	# two R's. Build whatever's missing INSTANTLY (no tweens) so the handed-off
+	# title is always the complete "Recess Raiders" with its underline.
+	_complete_title_instantly()
+
 	var vw: float = size.x if size.x > 0 else 1280.0
 	var vh: float = size.y if size.y > 0 else 720.0
 	var menu_title_topleft_y := vh * 0.5 - 200.0
@@ -243,3 +267,31 @@ func _finish() -> void:
 		_root = null
 	finished.emit()
 	queue_free()
+
+## Build any not-yet-created title pieces instantly (final positions, full opacity,
+## no tweens). Used when the player skips the splash mid-animation so the title
+## handed to the menu is always complete. Guards against re-building on the normal
+## (non-skipped) path via the _tail_built / _underline_built flags.
+func _complete_title_instantly() -> void:
+	if _root == null or _letter_xs.is_empty():
+		return
+	var fs := _title_font_size
+	if not _tail_built:
+		# spawn "ecess" (1..6) and "aiders" (8..13) at their measured x, seated on
+		# the ground line at full opacity — same glyphs the animated path makes.
+		for i in range(1, 7):
+			var l := _make_letter(_full_text[i], Vector2(_letter_xs[i], _ground_y))
+			l.modulate.a = 1.0
+		for i in range(8, 14):
+			var l2 := _make_letter(_full_text[i], Vector2(_letter_xs[i], _ground_y))
+			l2.modulate.a = 1.0
+		_tail_built = true
+	if not _underline_built:
+		# underline at full width immediately, then force its grow-tween to the end
+		_grow_underline(_center_x, _ground_y + float(fs) * 1.12, _total_w)
+		# _grow_underline starts the pieces at scale.x 0 and tweens to 1; snap the
+		# last two added children (trim, line) straight to full width.
+		for node in [_letters[_letters.size() - 2], _letters[_letters.size() - 1]]:
+			if node is ColorRect:
+				(node as ColorRect).scale = Vector2(1.0, 1.0)
+		_underline_built = true
