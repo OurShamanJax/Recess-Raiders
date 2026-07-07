@@ -11,23 +11,43 @@ base_model_path = "res://assets/character/bluegirl/bluegirl_base.glb"
 clip_paths = {
 "alert": "res://assets/character/bluegirl/bluegirl_alert.glb",
 "arise": "res://assets/character/bluegirl/bluegirl_arise.glb",
+"crouch": "res://assets/character/bluegirl/bluegirl_crouch.glb",
 "dead": "res://assets/character/bluegirl/bluegirl_dead.glb",
+"jump": "res://assets/character/bluegirl/bluegirl_jump.glb",
 "run": "res://assets/character/bluegirl/bluegirl_run.glb",
 "run_fast": "res://assets/character/bluegirl/bluegirl_run_fast.glb",
-"walk": "res://assets/character/bluegirl/bluegirl_walk.glb",
-"walk_casual": "res://assets/character/bluegirl/bluegirl_walk_casual.glb"
+"sit": "res://assets/character/bluegirl/bluegirl_sit.glb",
+"sit_exit": "res://assets/character/bluegirl/bluegirl_stand.glb",
+"sit_idle": "res://assets/character/bluegirl/bluegirl_sitidle.glb",
+"throw": "res://assets/character/bluegirl/bluegirl_throw.glb",
+"walk": "res://assets/character/bluegirl/bluegirl_walk.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
 "arise": "Armature|Arise|baselayer",
+"crouch": "Armature|CrouchLookAroundBow|baselayer",
 "dead": "Armature|Dead|baselayer",
+"jump": "Armature|Jump_with_Arms_Open|baselayer",
 "run": "Armature|running|baselayer",
 "run_fast": "Armature|run_fast_5|baselayer",
-"walk": "Armature|Walking_Woman|baselayer",
-"walk_casual": "Armature|walking_man|baselayer"
+"sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
+"sit_exit": "Armature|Sit_to_standTransition_Female_2|baselayer",
+"sit_idle": "Armature|Sitting_Clap|baselayer",
+"throw": "Armature|baseball_pitching|baselayer",
+"walk": "Armature|walking_man|baselayer"
+}
+clip_trims = {
+"jump": 1.47,
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
 }
 model_scale = 2.7
 scale_mult = 1.10
 facing_offset_deg = 0.0
 has_run_variants = true
 run_variant_keys = PackedStringArray("run", "run_fast")
+has_jump = true
+sit_raise = 1.0
+sit_forward = 1.4

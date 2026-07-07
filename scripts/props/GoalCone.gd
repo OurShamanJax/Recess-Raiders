@@ -6,6 +6,11 @@ extends Area3D
 ## values via get_state(): HOME(0) / CARRIED(1) / LOOSE(3). No IN_FLIGHT.
 
 const IS_BALL := false
+# The cone model is CENTRE-origin (Y bounds -1..+1) and ConeManager scales it by
+# CONE_HEIGHT*0.5 = 1.3, so its base sits 1.3 below the node origin. REST_Y lifts
+# the node so the base rests exactly on the ground (Y=0) instead of sinking through
+# it. Must match ConeManager.CONE_HEIGHT*0.5.
+const REST_Y := 1.3
 const RADIUS := 1.6
 const HOLD_HEIGHT := 3.6
 const HOLD_FORWARD := 2.6
@@ -70,14 +75,14 @@ func set_team(t: String) -> void:
 func to_home() -> void:
 	state = 0
 	carrier = null
-	global_position = home_pos
+	global_position = Vector3(home_pos.x, REST_Y, home_pos.z)
 	rotation = Vector3.ZERO
 	Events.ball_state_changed.emit(self)
 
 func to_loose(at: Vector3) -> void:
 	state = 3
 	carrier = null
-	global_position = Vector3(at.x, RADIUS, at.z)
+	global_position = Vector3(at.x, REST_Y, at.z)
 	Events.ball_state_changed.emit(self)
 
 func on_picked_up(by: Node) -> void:

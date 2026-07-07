@@ -11,21 +11,43 @@ base_model_path = "res://assets/character/fatboy/fatboy_base.glb"
 clip_paths = {
 "alert": "res://assets/character/fatboy/fatboy_alert.glb",
 "arise": "res://assets/character/fatboy/fatboy_arise.glb",
+"crouch": "res://assets/character/fatboy/fatboy_crouch.glb",
 "dead": "res://assets/character/fatboy/fatboy_dead.glb",
+"jump": "res://assets/character/fatboy/fatboy_jump.glb",
 "run": "res://assets/character/fatboy/fatboy_run.glb",
 "run_fast": "res://assets/character/fatboy/fatboy_run_fast.glb",
+"sit": "res://assets/character/fatboy/fatboy_sit.glb",
+"sit_exit": "res://assets/character/fatboy/fatboy_stand.glb",
+"sit_idle": "res://assets/character/fatboy/fatboy_sitidle.glb",
+"throw": "res://assets/character/fatboy/fatboy_throw.glb",
 "walk": "res://assets/character/fatboy/fatboy_walk.glb"
 }
 clip_anim_names = {
 "alert": "Armature|Alert|baselayer",
 "arise": "Armature|Arise|baselayer",
+"crouch": "Armature|CrouchLookAroundBow|baselayer",
 "dead": "Armature|Dead|baselayer",
+"jump": "Armature|Jump_with_Arms_Open|baselayer",
 "run": "Armature|running|baselayer",
-"run_fast": "Armature|Run_02|baselayer",
+"run_fast": "Armature|RunFast|baselayer",
+"sit": "Armature|Stand_to_Sit_Transition_M|baselayer",
+"sit_exit": "Armature|Sit_to_standTransition_Female_2|baselayer",
+"sit_idle": "Armature|Sitting_Clap|baselayer",
+"throw": "Armature|baseball_pitching|baselayer",
 "walk": "Armature|walking_man|baselayer"
+}
+clip_trims = {
+"jump": 1.47,
+"throw": 1.25
+}
+clip_cuts = {
+"throw": 1.1
 }
 model_scale = 2.7
 scale_mult = 1.03
 facing_offset_deg = 0.0
 has_run_variants = true
 run_variant_keys = PackedStringArray("run", "run_fast")
+has_jump = true
+sit_raise = 1.0
+sit_forward = 1.4

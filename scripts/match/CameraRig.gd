@@ -43,6 +43,7 @@ const _DEBUG_FOV_MIN := 18.0         # zoomed in (telephoto)
 const _DEBUG_FOV_MAX := 95.0         # zoomed out (wide)
 
 # Published movement basis (read by PlayerController). Flat, on ground plane.
+var _third_focus := Vector3.ZERO   # smoothed look point for the third-person cam
 var move_forward: Vector3 = Vector3(0, 0, -1)
 var move_right: Vector3 = Vector3(1, 0, 0)
 # Aim direction for throwing (includes pitch in FP).
@@ -246,11 +247,29 @@ func _update_third(p: Vector3, delta: float) -> void:
 	var hgt: float = third_height * (0.7 if third_zoomed else 1.0)
 	var shoulder: float = third_shoulder * (1.2 if third_zoomed else 1.0)
 	var want := head - flat_fwd * back + Vector3(0, hgt, 0) + right * shoulder
-	var t := 1.0 - pow(0.0001, delta)        # snappy but smooth, frame-rate independent
-	camera.global_position = camera.global_position.lerp(want, t)
-	# look at a point ahead of the player at chest height, biased by pitch
-	var focus := head + flat_fwd * 14.0 + Vector3(0, pitch * 10.0, 0) + right * (shoulder * 0.5)
-	camera.look_at(focus, Vector3.UP)
+	# SMOOTHING REMAKE: the old single ultra-fast lerp + hard look_at read as
+	# stiff/rigid. Now: horizontal follow is snappy but eased, vertical is
+	# noticeably softer (jump/terrain bumps don't jolt the frame), and the LOOK
+	# POINT itself is smoothed so rotation glides instead of hard-tracking.
+	var th := 1.0 - exp(-delta / 0.085)      # horizontal half-life ~60ms
+	var tv := 1.0 - exp(-delta / 0.22)       # vertical follows softer
+	var cp := camera.global_position
+	cp.x = lerpf(cp.x, want.x, th)
+	cp.z = lerpf(cp.z, want.z, th)
+	cp.y = lerpf(cp.y, want.y, tv)
+	camera.global_position = cp
+	# focus: ahead of the player at chest height, biased by pitch, with a small
+	# LEAD in the direction they're moving so the camera anticipates like a
+	# human camera operator would.
+	var lead := Vector3.ZERO
+	if target != null and is_instance_valid(target) and "velocity" in target:
+		var v: Vector3 = target.velocity
+		v.y = 0.0
+		lead = v.limit_length(8.0) * 0.22
+	var focus := head + flat_fwd * 14.0 + Vector3(0, pitch * 10.0, 0) + right * (shoulder * 0.5) + lead
+	var tf := 1.0 - exp(-delta / 0.11)
+	_third_focus = focus if _third_focus == Vector3.ZERO else _third_focus.lerp(focus, tf)
+	camera.look_at(_third_focus, Vector3.UP)
 	move_forward = flat_fwd
 	move_right = right
 	aim_dir = flat_fwd

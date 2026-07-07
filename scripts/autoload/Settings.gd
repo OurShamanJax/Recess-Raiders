@@ -314,3 +314,10 @@ func unlock_character(id: String) -> bool:
 ## earned + starter unlocks remain; only the debug override is cleared.
 func toggle_debug_unlock_all() -> void:
 	debug_unlock_all = not debug_unlock_all
+
+## Wipe all earned character unlocks (starters stay). "Delete Your Progress" in
+## the settings menu — for players who want the unlock chase again.
+func reset_progress() -> void:
+	unlocked_characters.clear()
+	debug_unlock_all = false
+	save_settings()

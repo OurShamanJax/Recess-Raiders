@@ -20,6 +20,9 @@ tagged. **Steal their entire stash to win.**
 - **Skill-based throwing** — a timing meter decides whether your throw flies true
   or fumbles loose. Lock onto a teammate to fire a guided pass.
 - **Unlockable roster** — start with one kid per team; win matches to unlock more.
+- **15-minute matches** with sudden-death overtime if the score is tied.
+- **Smarter kids** — AI raids in lanes across the whole field width, contests the
+  middle, revives fallen friends, and jumps to intercept your throws.
 - **Smart tagging** — the game tags who you're *looking at*, not just whoever's
   closest. Jumping over a tagger dodges the tag. Freshly revived kids get a moment
   of protection. Tags land with a punchy hit-pause and impact burst; jumps kick up
@@ -27,7 +30,7 @@ tagged. **Steal their entire stash to win.**
 - **Stamina strategy** — sprint hard, gas out, recover in safe-zone pods (which
   eject loot-carriers — no camping with the goods).
 - **An animated splash intro** with a welcome voice-over, a living menu backdrop,
-  and a coach patrolling the sidelines.
+  and a coach who sprints the sideline, dances, stomps, backflips — and sneaks off for a bench break.
 - **Runs on modest hardware** — a one-click **Performance preset** (Esc → Settings →
   Graphics) drops render scale, shadows, grass, and lighting effects for a big FPS
   boost; **Quality** restores full fidelity. Changes apply live, no restart.

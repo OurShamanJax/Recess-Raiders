@@ -352,7 +352,7 @@ func _show_step(step: int) -> void:
 	match step:
 		Step.LANDING:
 			_title.text = "RECESS RAIDERS"
-			_subtitle.text = "Schoolyard mayhem"
+			_subtitle.text = "Inspired by 2 Berry"
 			var play := _make_button("Play")
 			play.pressed.connect(func(): _show_step(Step.MODEL))
 			var settings_btn := _make_button("Settings")
@@ -1002,14 +1002,22 @@ func _find_anim_player(node: Node) -> AnimationPlayer:
 			return r
 	return null
 
-## Debug aid: N in the character selector toggles "unlock all" so every character
+## Debug aid: B in the character selector toggles "unlock all" so every character
 ## is playable for testing; pressing it again relocks everything not yet earned.
 func _input(event: InputEvent) -> void:
-	if _step != Step.MODEL:
+	# ONLY while the selector is actually on screen. The overlay stays alive
+	# (hidden) during the match with _step still == MODEL, and this handler was
+	# eating the N key (now B; N is the debug fly-cam) — before the
+	# camera rig could see it (_input runs before _unhandled_input).
+	# Guard: selector on-screen only. NOTE: do NOT gate on phase — the menu's
+	# background demo match is ALSO phase==PLAYING (the classic menu-demo trap),
+	# which silently killed the B toggle while the selector was open. visible +
+	# Step.MODEL is exactly right: hidden during real matches, active here.
+	if _step != Step.MODEL or not visible:
 		return
 	if event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo:
 		var k := event as InputEventKey
-		if k.physical_keycode == KEY_N or k.keycode == KEY_N:
+		if k.physical_keycode == KEY_B or k.keycode == KEY_B:
 			Settings.toggle_debug_unlock_all()
 			_refresh_lock_states()
 			get_viewport().set_input_as_handled()

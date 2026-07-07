@@ -59,48 +59,43 @@ func _unhandled_input(event: InputEvent) -> void:
 	if (event is InputEventKey and event.pressed) or (event is InputEventMouseButton and event.pressed):
 		_finish()
 
+## Measure the title layout (letter x positions, width, centre, baseline) — pure
+## math, no awaits, so BOTH the animated path and an instant skip can compute it.
+## The previous skip bug: skipping on frame 0 bailed _run() before the layout was
+## stashed, so the instant-completion had nothing to build from.
+func _compute_layout() -> void:
+	var vw: float = size.x if size.x > 0 else 1280.0
+	var vh: float = size.y if size.y > 0 else 720.0
+	_center_x = vw * 0.5
+	_ground_y = vh * 0.42
+	_full_text = "Recess Raiders"
+	var font := ThemeDB.fallback_font
+	var fs := _title_font_size
+	var advances: Array = []
+	_total_w = 0.0
+	for i in range(_full_text.length()):
+		var adv: float = font.get_string_size(_full_text[i], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 4.0
+		advances.append(adv)
+		_total_w += adv
+	_letter_xs = []
+	var cursor := _center_x - _total_w * 0.5
+	for i in range(_full_text.length()):
+		_letter_xs.append(cursor)
+		cursor += advances[i]
+
 func _run() -> void:
 	# let fonts/theme/layout settle one frame before measuring letter positions —
 	# measuring at frame 0 occasionally raced layout and scrambled the splash
 	# (rare, random, no errors: the classic symptom of a first-frame measure)
 	await get_tree().process_frame
 	if _done: return
-	var vw: float = size.x if size.x > 0 else 1280.0
-	var vh: float = size.y if size.y > 0 else 720.0
-	var cx := vw * 0.5
-	var ground_y := vh * 0.42
-
-	# Measure the real pixel width of each letter so spacing is natural (fixed-width
-	# advance made "i" too wide and left a gap before "ders"). We build the whole
-	# title "Recess Raiders" and record each glyph's x from a running cursor.
-	var full := "Recess Raiders"
-	var font := ThemeDB.fallback_font
+	_compute_layout()
+	var xs: Array = _letter_xs
+	var cx := _center_x
+	var ground_y := _ground_y
+	var total_w := _total_w
+	var full := _full_text
 	var fs := _title_font_size
-	# per-letter advance widths
-	var advances: Array = []
-	var total_w := 0.0
-	for i in range(full.length()):
-		var ch := full[i]
-		var adv: float = font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		# add a little tracking between letters for a titley look
-		adv += 4.0
-		advances.append(adv)
-		total_w += adv
-	# starting x so the whole title is centered
-	var start_x := cx - total_w * 0.5
-	# compute each letter's left x
-	var xs: Array = []
-	var cursor := start_x
-	for i in range(full.length()):
-		xs.append(cursor)
-		cursor += advances[i]
-	# stash layout so _finish() can COMPLETE the title instantly if the player
-	# skips mid-sequence (otherwise only the fallen R's hand off to the menu)
-	_full_text = full
-	_letter_xs = xs
-	_ground_y = ground_y
-	_total_w = total_w
-	_center_x = cx
 
 	# the two R's are at index 0 and index 7 ("Recess "=7 chars incl. space)
 	var r1_x: float = xs[0]
@@ -273,25 +268,29 @@ func _finish() -> void:
 ## handed to the menu is always complete. Guards against re-building on the normal
 ## (non-skipped) path via the _tail_built / _underline_built flags.
 func _complete_title_instantly() -> void:
-	if _root == null or _letter_xs.is_empty():
+	# BULLETPROOF version: whatever partial state the skip caught (no letters,
+	# R's mid-fall, tail half-typed, underline mid-grow), wipe it and rebuild
+	# the entire finished title at final positions. Rebuilding from scratch is
+	# the only approach that's correct at EVERY possible skip timing.
+	if _root == null:
 		return
-	var fs := _title_font_size
-	if not _tail_built:
-		# spawn "ecess" (1..6) and "aiders" (8..13) at their measured x, seated on
-		# the ground line at full opacity — same glyphs the animated path makes.
-		for i in range(1, 7):
-			var l := _make_letter(_full_text[i], Vector2(_letter_xs[i], _ground_y))
-			l.modulate.a = 1.0
-		for i in range(8, 14):
-			var l2 := _make_letter(_full_text[i], Vector2(_letter_xs[i], _ground_y))
-			l2.modulate.a = 1.0
-		_tail_built = true
-	if not _underline_built:
-		# underline at full width immediately, then force its grow-tween to the end
-		_grow_underline(_center_x, _ground_y + float(fs) * 1.12, _total_w)
-		# _grow_underline starts the pieces at scale.x 0 and tweens to 1; snap the
-		# last two added children (trim, line) straight to full width.
-		for node in [_letters[_letters.size() - 2], _letters[_letters.size() - 1]]:
-			if node is ColorRect:
-				(node as ColorRect).scale = Vector2(1.0, 1.0)
-		_underline_built = true
+	if _letter_xs.is_empty():
+		_compute_layout()   # skipped before _run() measured — do it now
+	for n in _letters:
+		if is_instance_valid(n):
+			n.queue_free()
+	_letters.clear()
+	for i in range(_full_text.length()):
+		if _full_text[i] == " ":
+			continue
+		var l := _make_letter(_full_text[i], Vector2(_letter_xs[i], _ground_y))
+		l.modulate.a = 1.0
+		l.rotation = 0.0
+		l.scale = Vector2.ONE
+	_tail_built = true
+	# underline at full width (snap the grow-tween pieces to done)
+	_grow_underline(_center_x, _ground_y + float(_title_font_size) * 1.12, _total_w)
+	for node in [_letters[_letters.size() - 2], _letters[_letters.size() - 1]]:
+		if node is ColorRect:
+			(node as ColorRect).scale = Vector2(1.0, 1.0)
+	_underline_built = true

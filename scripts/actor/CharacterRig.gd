@@ -53,7 +53,6 @@ const GIRL_BASE: PackedScene = preload("res://assets/character/girl/girl_base.gl
 const GIRL_CLIPS := {
 	"alert": "res://assets/character/girl/girl_alert.glb",
 	"walk": "res://assets/character/girl/girl_walk.glb",
-	"walk_casual": "res://assets/character/girl/girl_walk_casual.glb",
 	"run": "res://assets/character/girl/girl_run.glb",
 	"run_fast": "res://assets/character/girl/girl_run_fast.glb",
 	"run_03": "res://assets/character/girl/girl_run_03.glb",

@@ -12,6 +12,8 @@ the "V5 / audio + settings + structural terrain" work cycle, then updated with t
 **Recess Raiders** — a 3D 10-v-10 schoolyard "capture the loot" game built in
 **Godot 4.6** with **GDScript**. One human player + 9 AI on your team vs 10 AI opponents.
 (Team size lives in Config.TEAM_SIZE; was 14, reduced to 10 to fit the 110x200 field.)
+ROSTER COMPLETE: all 8 kids on full modern clip sets; coach remastered. AI doctrine in docs/AI_DESIGN.md.
+Matches are 15 min + golden-goal overtime (GameState.clock_running gates real vs menu-demo matches).
 
 Core loop ("the omelet" — do not lose sight of this):
 - Two teams of kids on a field split at the midline (Z=0).
@@ -317,6 +319,106 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
 
+**QTE key-conflict hardening.** The key-press QTE picked from a static pool commented as unbound — but keys
+are REBINDABLE, so the pool could collide the moment a player rebinds (and sprint/crouch are POLLED via
+Input.is_action_pressed, which set_input_as_handled cannot block — exclusion at pick time is the only safe
+approach). _pick_qte_key() now filters the pool against the LIVE InputMap every pick (both keycode and
+physical_keycode, skipping ui_* builtins), with a fallback ladder (no-repeat+unbound -> unbound -> anything).
+Candidate pool then WIDENED to all letters+digits (A-Z, 0-9) built once at load, so the dynamically-filtered pool never runs dry however much the player rebinds. (In-match QTEs can safely ask for B — the selector debug key is menu-only.) Rebinds update the effective pool instantly since filtering happens per pick against the live InputMap.
+
+**Debug fly-cam toggle fix (N-key eaten).** toggle_debug_cam is physical N; the selector'''s debug
+unlock-all is ALSO N. MenuOverlay persists hidden during the match with _step still == MODEL, so its _input
+handler consumed N (set_input_as_handled) before CameraRig._unhandled_input — debug cam dead + unlock-all
+silently flipping. ALSO: selector toggle remapped N->B so the two debug keys never collide. THEN the guard itself hit the menu-demo trap: gating on phase!=PLAYING killed B in the selector because the DEMO behind the menu is PLAYING — guard is now visible+Step.MODEL only (correct: overlay is hidden during real matches). FIX: selector handler now requires _step==MODEL AND visible AND phase != PLAYING. RULE:
+any _input keyboard handler on a persistent UI node MUST be gated on that UI actually being on screen —
+_input outranks _unhandled_input globally.
+
+**FULL SYSTEM AUDIT (post-remaster).** Automated: parse battery 36/36, inference sweep clean, def<->GLB
+integrity clean (8 defs + coach CLIPS), all res:// paths resolve EXCEPT audio (AudioManager references 11
+sfx/music files that don't exist yet — VERIFIED GRACEFUL: _load_cached existence-checks and silently no-ops,
+this is the audio backlog not a bug). boy_*.glb orphans purged from repo copy. Signals: 'bus' declared unused,
+'game_paused' emitted x2 never connected — harmless, left for future wiring. THREE REAL BUGS found & fixed
+(all from the remaster session): (1) RED-side coach bench break would cross the live field — benches only
+exist at +X, so breaks now require _zone_center.x > 0; (2) menu demo match (orbit) ticked the 15-min clock and
+could award unlocks at 'finish' — new GameState.clock_running gates the tick AND _award_unlock, set true only
+at real match start, false for orbit/reset; (3) Delete-Progress emitted main_menu_requested even from the
+main menu — now only when phase is PLAYING/COUNTDOWN. AUDIT RULE: after any multi-system session, re-run this
+checklist (battery, sweep, paths, integrity, orphans, signals, then hand-review every hardcoded coordinate and
+every phase==PLAYING assumption against the MENU DEMO, which is also PLAYING).
+
+**SYSTEMS REMASTER SESSION (AI redesign + coach + clock + camera + QoL).** AI: doctrine written to
+docs/AI_DESIGN.md FIRST, then implemented — lane-column travel (_lane_travel: long moves go up the bot's lane,
+raids arrive as a broad front; _lane_wander adds ±16 sideways drift per re-think), jump-INTERCEPT of enemy
+throws (_intercept_chance samples ball velocity 0.9s ahead; want_jump when close, react-gated), rescue floor
+0.7 + close-range kicker (no more walking past downed teammates), contested-middle CHASE (22u bubble breaks the
+border stalemate), REVIVE_MIN_DOWNED=5s in Actor (tag-loop jitter fix). AI never crouches (no crouch-walk clip).
+COACH: faces movement direction while running (was crab-running facing the field), face_field only on emote
+(set once, not re-asserted), NEW bench-break routine (_sit_state machine: every 60-110s walks to nearest bench
+x=64.2 z∈{80,45,-45,-80}, sits y=2.3, Sitting_Clap 8-13s, stands, resumes; moods blocked while seated). Coach
+sit/stand/sitidle clips stripped from CouchUpdated pack. CLOCK: GameState.MATCH_LENGTH=15min ticked in
+_process while PLAYING; tied at 0:00 -> overtime=true golden goal (set_counts finishes on first score diff);
+HUD clock label MM:SS / orange OVERTIME. UI: tagline "Schoolyard mayhem"->"Inspired by 2 Berry";
+Settings.reset_progress() + "Delete Your Progress" two-click button in Gameplay tab (wipes unlocks, un-pauses,
+main_menu_requested). CAMERA: third-person remade — split horizontal (60ms half-life) / vertical (220ms)
+position smoothing, SMOOTHED focus point (110ms) instead of hard look_at, velocity lead 0.22x so it anticipates
+motion. SPLASH: _compute_layout() extracted (pure sync math); _complete_title_instantly() now WIPES partial
+letters and rebuilds the WHOLE title + underline at final positions — correct at every skip timing incl.
+frame-0 skips (the remaining bug: skipping before the settle-frame await left _letter_xs empty).
+
+**Cone ground-clipping fix (after shrink).** The cone model is CENTRE-origin (Y -1..+1); after the 4.0->2.6
+scale, its base sits 1.3 below the node origin. Home cones spawned at Y=0 (base sank 1.3 into ground = the
+clipping) and loose at Y=1.6 (floating). FIX: GoalCone.REST_Y=1.3 (=CONE_HEIGHT*0.5) applied to BOTH to_home
+and to_loose so the base rests on Y=0. Collision cylinder offset corrected too: since the node is now lifted to
+the cone centre, ConeManager collision position.y CONE_HEIGHT*0.5 -> 0 (was double-offsetting above the visual).
+Ball was already correct (centre-origin sphere placed at Y=RADIUS). NOTE: keyboard-died-during-playtest was
+almost certainly a USB enumeration hiccup (persisted through reboot, fixed by re-plug) — NOT the game, which
+touches no drivers/USB/input hardware. Grass placement is normal (random scatter of the new tufts).
+
+**Cone shrink + grass redesign.** CONE: carried/loose goal cones were too big (towered over kids).
+ConeManager.CONE_HEIGHT 4.0->2.6 (~35% smaller; drives both visual scale AND the collision cylinder, so pickup
+volume scales too). GRASS: replaced the single flat triangle blade (the "spiky triangle" look) with a proper
+tuft — 5 curved multi-segment tapered blades per instance, each bending over quadratically toward the tip, at
+varied angles/heights, so it reads as soft lawn not spikes. ~40 tris/tuft now, so instance counts dropped:
+GrassField.blade_count default 30000->9000, Environment quality override 14000/38000 -> 6000/11000 (HIGH =
+11000 tufts x 40 = 440k tris, fine). Shader vheight divisor 0.55->0.5 to match new blade height. Performance
+preset still forces grass OFF so weak HW unaffected.
+
+**Red Girl (girl/) full model + Coach remaster.** RED GIRL: new Meshy pack (Open_Arms_Girl) -> complete
+(walk/run/run_fast/run_03/alert/dead/arise/jump/sit/sit_exit/sit_idle/crouch; NO throw, fine). Jump +275
+de-drifted, walking_2/Walking_Woman skipped, uses Look_Back_and_Sit for sit, Sitting_Clap idle (same model, no
+graft). Removed girl_walk_casual + its dead CharacterRig GIRL_CLIPS ref. COACH: new Whistle_Wearing_Coach model
+into coach/ folder. New CLIPS dict (walk/run/alert + emotes cheer/cheer2/stomp/agree/dance_boom/dance_cardio/
+dance_groove/dance_night/backflip). Agree +17 & Backflip -44 de-drifted. Mood emotes enriched: HAPPY->random of
+4 dances, ANGRY->stomp, HYPE->random cheer/cheer2/backflip. Removed 7 orphaned old coach clips (boxing/skill1/
+skill3/walk_casual/walk_unsteady/arise/dead). Patrol tuned: speed 14->18, run-anim threshold 18->6 so he reads
+as actively sprinting the sideline to track the player up/down the field. All refs resolve, 13 coach files.
+ROSTER NOW COMPLETE: all 8 kids fully animated.
+
+**Smart Boy Blue — model refresh.** New Meshy pack (Arms_Wide_Open) into SAME indianboy/ folder & filenames.
+Vetting: jump +246 (de-drifted), walking_2 +114 (skipped), Dead/sit one-shot drift kept. Base unstripped
+(mesh=1). sit-idle = proper Sitting_Clap (user sent it separately after the pack); clean, legs match seated (-0.83 vs
+-0.87) so used DIRECTLY, no rebuild. (Briefly rebuilt from old thumbs-up before the clap arrived — now replaced.) run_03 (Run_02) kept — def uses it.
+Jump trim 1.47. All 8 defs clean. ROSTER: all 4 blue COMPLETE + Red Hoodie + Fat Boy; only red_boy + red_girl
+still basic.
+
+**Sporty Girl Blue — full model replacement (now COMPLETE).** New Meshy pack (Blue_Sports_Girl) into SAME
+bluegirl/ folder & filenames (auto-resolves). Was 4 clips -> complete: walk/run/run_fast/alert/dead/arise/
+jump/sit/sit_exit/sit_idle/crouch/throw. HEAVY vetting payoff: run_fast_5 had +418 Z drift (THE original
+sprint-rubberband clip — de-drifted), jump +274 (de-drifted), Walking_Woman had the 1.176 hip-SCALE bug
+(skipped, used clean walking_man; strip script also neutralizes scale tracks as backstop). Skipped extra
+clips (Female_Head_Down_Charge/Knock_Down/dying_backwards — not needed). Base unstripped (18MB raw). sit_idle=
+Sitting_Clap from this model, legs match seated (0.76 vs 0.74) NO graft. Jump trim 1.47. Old orphans
+bluegirl_run_03 + bluegirl_walk_casual deleted. sit_raise 1.0/forward 1.4 (tune from playtest). All 8 defs
+clean. ROSTER NOW: all 4 blue + Red Hoodie + Fat Boy complete; only red_boy + red_girl still basic.
+
+**Fat Boy Red — full model replacement (now COMPLETE).** New Meshy pack (T_Pose_Boy) into the SAME fatboy/
+folder & filenames (auto-resolves, no orphans/ref-updates). Was 6 basic clips -> now complete: walk/run/
+run_fast/alert/dead/arise/jump/sit/sit_exit/sit_idle/crouch/throw. Vetting caught jump +216 Z (de-drifted),
+walking_2 +107 (skipped), Dead/Arise/sit one-shot drift kept. Base unstripped (mesh=1, 6.3MB). sit_idle =
+Sitting_Clap from THIS model, legs already match the sit pose (0.72 vs 0.71) so NO graft needed (unlike Red
+Hoodie). Jump trim 1.47 lift-off. Old fatboy_run_03.glb orphan deleted. sit_raise 1.0/forward 1.4 (BLIND —
+tune from playtest; sit-down skips to sit_idle so only the seated placement matters). All 8 defs integrity-clean.
+
 **SIT-DOWN TRANSITION = skip it, jump straight to sit_idle (the ACTUAL fix).** The sit "transition" clip
 (Stand_to_Sit) mis-places the body (teleports onto/through the bench BACK) before the idle snaps it to the
 correct seat. Stand-up was always fine (plays from the correct sit_idle spot). FIX: play_sit() now travels
@@ -357,7 +459,7 @@ arms keep the gesture. Verified: arms motion range ~0.6, Hips free, legs 0.0 (fr
 Hips. UNLOCK SYSTEM: Settings.unlocked_characters set (persisted [progression]/unlocked), STARTER_IDS=[blue_boy,
 red_asianboy] always unlocked, is_character_unlocked()/unlock_character()/toggle_debug_unlock_all(). Selector:
 lock 🔒 overlay + dim on locked cards, _select_model_card blocks locked picks, _pick_team_in_place greys locked +
-default-selects first UNLOCKED, _refresh_lock_states re-applies. N key (Step.MODEL only) toggles debug unlock-all
+default-selects first UNLOCKED, _refresh_lock_states re-applies. B key (Step.MODEL only) toggles debug unlock-all
 then relocks unearned. WIN HOOK: GameState._finish -> if team==user_team, _award_unlock() unlocks next locked in
 roster order. ABILITIES: deliberately NOT added (user didn'''t want to risk the core loop) — unlocks are cosmetic
 variety only. Match starts with 1 playable per side (the starters).

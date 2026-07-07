@@ -659,7 +659,7 @@ func _build_grass() -> void:
 	if q <= 0:
 		return   # "Off" now actually means off (it used to still draw 8000 blades)
 	var g := GrassFieldScript.new()
-	g.blade_count = 14000 if q == 1 else 38000
+	g.blade_count = 6000 if q == 1 else 11000
 	add_child(g)
 	g.build()
 	_grass = g

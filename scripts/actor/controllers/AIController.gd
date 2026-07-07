@@ -40,6 +40,7 @@ var _smoothed_push := Vector3.ZERO
 
 # --- personality (rolled once at setup) ---
 var _brave := 1.0                  # >1 raids deeper, chases harder
+var _lane_wander := 0.0            # occasional sideways lane offset (horizontal variety)
 var _team_play := 1.0              # >1 passes & supports more
 var _hustle := 1.0                 # >1 sprints/commits more
 
@@ -80,6 +81,19 @@ func build_intent(delta: float) -> Intent:
 		var land: Vector3 = a.incoming_ball.predicted_landing
 		_seek(land, true)         # sprint to the landing spot
 		intent.want_interact = true
+		return intent
+
+	# JUMP-INTERCEPT (AI_DESIGN.md §4): an enemy throw arcing past nearby is a
+	# now-or-never chance to knock it down. Skill-gated so casual kids often
+	# miss the window while ruthless ones time it well. Beats normal jobs but
+	# not catching a pass meant for us / carrying.
+	var icept := _intercept_chance()
+	if icept != Vector3.INF:
+		_seek(icept, true)
+		# jump when the ball is nearly on us and at jumpable height
+		var d_ic: float = Vector3(icept.x - a.global_position.x, 0, icept.z - a.global_position.z).length()
+		if d_ic < 3.5 and randf() < Config.ai_val("react"):
+			intent.want_jump = true
 		return intent
 
 	# carriers always run home (highest priority, never re-scored away)
@@ -196,6 +210,10 @@ func _score_current_job() -> float:
 # UTILITY SCORING — pick the best job for right now
 # ============================================================================
 func _choose_job() -> void:
+	# occasional sideways drift so travel isn't always the same column — kids
+	# wander laterally, using the field's width (small chance per re-think)
+	if randf() < 0.25:
+		_lane_wander = randf_range(-16.0, 16.0)
 	var a := actor
 	_release_claim()
 	var best_score: float = -INF
@@ -258,6 +276,21 @@ func _choose_job() -> void:
 		if score2 > best_score:
 			best_score = score2; best_job = Job.CHASE; best_target = e; best_point = ep
 
+	# --- option: ENGAGE a nearby enemy anywhere (incl. the contested middle) so
+	# the teams actually clash instead of mutually avoiding at the border. Lower
+	# weight than defending our own half, but enough to break the stalemate.
+	for e2 in _nearby_enemies(22.0):
+		if e2.is_tagged():
+			continue
+		var epx: Vector3 = e2.global_position
+		var distx: float = a.global_position.distance_to(epx)
+		var proxx: float = 1.0 - clampf(distx / 22.0, 0.0, 1.0)
+		var urg2 := 1.8 if e2.has_target() else 1.0   # chase carriers hard
+		var claim_penx := 0.5 if _is_claimed_by_other(e2) else 1.0
+		var scorex: float = 58.0 * proxx * urg2 * claim_penx * _brave * Config.ai_val("aggro")
+		if scorex > best_score:
+			best_score = scorex; best_job = Job.CHASE; best_target = e2; best_point = epx
+
 	# --- option: RESCUE a downed teammate ---
 	for d in _downed_teammates():
 		var dp: Vector3 = d.global_position
@@ -266,7 +299,13 @@ func _choose_job() -> void:
 			continue
 		var prox3: float = 1.0 - 0.5 * clampf(dist3 / Config.RESCUE_MAX_DIST, 0.0, 1.0)
 		var claim_pen3 := 0.4 if _is_claimed_by_other(d) else 1.0
-		var score3: float = 75.0 * prox3 * Config.ai_val("revive") * claim_pen3 * _team_play
+		# revive trait floored at 0.7 so even casual bots help a downed teammate
+		# (walking past a teammate begging for a revive felt terrible). Base bumped
+		# and a proximity kicker: a bot standing right next to a body almost always
+		# stops to help.
+		var revive_w: float = maxf(0.7, Config.ai_val("revive"))
+		var close_kick: float = 1.6 if dist3 < 14.0 else 1.0
+		var score3: float = 92.0 * prox3 * revive_w * claim_pen3 * _team_play * close_kick
 		if score3 > best_score:
 			best_score = score3; best_job = Job.RESCUE; best_target = d; best_point = dp
 
@@ -374,7 +413,7 @@ func _execute_job() -> void:
 			# we can now perceive.
 			var sprint: bool = Config.on_enemy_half(actor.team, actor.global_position.z) \
 				or actor.global_position.distance_to(_job_point) < 50.0
-			_seek(_job_point, sprint)
+			_seek(_lane_travel(_job_point), sprint)
 			if actor.global_position.distance_to(_job_point) < 30.0:
 				_commit = 0.0   # re-evaluate: we should be able to see loot now
 		Job.DEFEND_GOAL:
@@ -383,7 +422,7 @@ func _execute_job() -> void:
 			if threat != null:
 				_seek(threat.global_position, true)
 			else:
-				_seek(_job_point, false)
+				_seek(_lane_travel(_job_point), false)
 		Job.HOLD_LINE:
 			var threat2 := _nearest_threat_near(actor.global_position, 36.0)
 			if threat2 != null and Config.intruding_into(actor.team, threat2.global_position.z):
@@ -613,6 +652,19 @@ func _grabbable_targets() -> Array:
 	# about. A bot won't beeline a ball it has no way of seeing.
 	return perception.visible_targets
 
+## Any perceived enemies within `radius`, anywhere on the field (used to break the
+## border stalemate — bots engage foes in the contested middle, not just our half).
+func _nearby_enemies(radius: float) -> Array:
+	var out: Array = []
+	var here: Vector3 = actor.global_position
+	for e in perception.visible_enemies:
+		if is_instance_valid(e) and not e.is_tagged() and here.distance_to(e.global_position) <= radius:
+			out.append(e)
+	for e in perception.nearby_enemies:
+		if not out.has(e) and is_instance_valid(e) and not e.is_tagged() and here.distance_to(e.global_position) <= radius:
+			out.append(e)
+	return out
+
 func _threats_on_our_half() -> Array:
 	# directly perceived intruders on our half + teammate-shared beliefs.
 	# This is what gives the team reactive defense: one bot sees the player raid,
@@ -701,6 +753,45 @@ func _flanked_lane_x(span: float) -> float:
 	# push toward the flank side, clamped inside the field
 	var shifted := base + float(flank) * 22.0
 	return clampf(shifted, -Config.FIELD_X + 5.0, Config.FIELD_X - 5.0)
+
+## LANE-COLUMN TRAVEL (AI_DESIGN.md §2): while far from a travel objective (in Z),
+## head up the bot's own lane column instead of diagonally straight at the point —
+## raids arrive as a broad front, crossings spread over multiple border gaps, and
+## the field's width actually gets used. Releases to the true point when close.
+func _lane_travel(dest: Vector3) -> Vector3:
+	var dz: float = dest.z - actor.global_position.z
+	if absf(dz) < 30.0:
+		return dest
+	var lx := clampf(_flanked_lane_x(60.0) + _lane_wander, -Config.FIELD_X + 5.0, Config.FIELD_X - 5.0)
+	return Vector3(lx, 0, actor.global_position.z + signf(dz) * 26.0)
+
+## JUMP-INTERCEPT detection: returns the point to contest an enemy ball in flight,
+## or Vector3.INF when there's nothing interceptable. A ball qualifies if it was
+## thrown by the other team, is IN_FLIGHT at jumpable height, and its horizontal
+## path passes within reach soon (simple linear look-ahead on its velocity).
+func _intercept_chance() -> Vector3:
+	var a := actor
+	for b in Engine.get_main_loop().get_nodes_in_group("balls"):
+		if not is_instance_valid(b) or b.get_state() != 2:   # 2 = IN_FLIGHT
+			continue
+		var thrower: Node = b.thrower
+		if thrower == null or not is_instance_valid(thrower) or thrower.team == a.team:
+			continue
+		var bp: Vector3 = b.global_position
+		var bv: Vector3 = b.linear_velocity
+		# closest horizontal approach within the next ~0.9s (sampled)
+		var best_d := 999.0
+		var best_p := Vector3.INF
+		for i in range(1, 7):
+			var tt := float(i) * 0.15
+			var fp: Vector3 = bp + bv * tt + Vector3(0, -0.5 * Config.GRAVITY * tt * tt, 0)
+			var hd := Vector2(fp.x - a.global_position.x, fp.z - a.global_position.z).length()
+			if hd < best_d and fp.y > 2.0 and fp.y < 7.0:
+				best_d = hd
+				best_p = Vector3(fp.x, 0, fp.z)
+		if best_d < 6.5:
+			return best_p
+	return Vector3.INF
 
 func _lane_x(span: float) -> float:
 	var n := maxi(1, Config.TEAM_SIZE)

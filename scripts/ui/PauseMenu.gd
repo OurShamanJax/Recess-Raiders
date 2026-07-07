@@ -73,6 +73,21 @@ func _build_settings_tabs() -> void:
 	_add_check(gp, "sprint_fx", "Sprint FX (FOV punch)")
 	_add_check(gp, "show_nametags", "Show Nametags")
 	_add_slider(gp, "mouse_sensitivity", "Mouse Sensitivity", 0.2, 3.0, 0.05)
+	# danger zone: wipe unlock progress (two-click confirm, then back to the menu)
+	var wipe := Button.new()
+	wipe.text = "Delete Your Progress"
+	wipe.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+	gp.add_child(wipe)
+	wipe.pressed.connect(func():
+		if wipe.text != "Are you sure? Click again":
+			wipe.text = "Are you sure? Click again"
+			return
+		Settings.reset_progress()
+		wipe.text = "Delete Your Progress"
+		# back to the main menu (also un-pauses if we were mid-match)
+		visible = false
+		get_tree().paused = false
+		Events.main_menu_requested.emit())
 
 	# --- Graphics tab ---
 	var gx := _new_tab(tabs, "Graphics")

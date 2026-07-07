@@ -9,7 +9,7 @@ const ConeModel: PackedScene = preload("res://assets/props/cone.glb")
 const BorderConeScript := preload("res://scripts/props/Cone.gd")
 const GoalConeScript := preload("res://scripts/props/GoalCone.gd")
 
-const CONE_HEIGHT := 4.0   # visual scale for the imported cone (≈2 units tall raw)
+const CONE_HEIGHT := 2.6   # visual scale for the imported cone (≈2 units tall raw); sized to sit around a kid's knee, not tower over them
 
 # World positions of the border (midline) cones, captured at spawn so NavManager
 # can carve them out of the field navmesh. Read by Match after spawn_all().
@@ -52,7 +52,10 @@ func _spawn_goal_cones() -> void:
 			shape.radius = 1.4
 			shape.height = CONE_HEIGHT
 			col.shape = shape
-			col.position.y = CONE_HEIGHT * 0.5
+			# The Area3D node now rests at the cone's vertical CENTRE (GoalCone.REST_Y),
+			# and the model is centre-origin, so the collision centres on the node
+			# (offset 0) — spanning the visual cone rather than floating above it.
+			col.position.y = 0.0
 			area.add_child(col)
 			var x := lerpf(-30.0, 30.0, float(i) / float(maxi(cnt - 1, 1)))
 			var home := Vector3(x, 0, gz)

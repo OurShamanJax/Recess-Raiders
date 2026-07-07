@@ -25,6 +25,10 @@ var heading: float = 0.0
 var carried: Node = null               # Ball or GoalCone (or null)
 var _tagged := false
 var _revive_timer := 0.0               # counts up while tagged; auto-return at timeout
+var _downed_time := 0.0                # counts up while tagged; revive is BLOCKED until
+                                       # this passes REVIVE_MIN_DOWNED, so a surrounded
+                                       # player can't get stuck in a down->revive->down
+                                       # jitter loop when friends and enemies overlap
 var spawn_pos: Vector3 = Vector3.ZERO
 var _interact_cooldown := 0.0
 # Bench sitting. When _sitting, the player is snapped to _sit_pos and locked in
@@ -399,6 +403,7 @@ func on_tagged() -> void:
 	if is_user:
 		GameState.bump_stat("times_tagged")
 	_revive_timer = 0.0
+	_downed_time = 0.0
 	if carried != null:
 		# A stolen enemy item snaps back to ITS OWN base (you lose your steal when
 		# caught carrying it home). Use restore_origin so it returns to the side it
@@ -419,6 +424,11 @@ func on_tagged() -> void:
 
 func revive() -> void:
 	if not _tagged:
+		return
+	# minimum-downed delay: block revives (teammate OR tag-back) until the player
+	# has been down long enough, so overlapping friends/enemies can't loop them
+	# through down->revive->down while the arise animation is still playing.
+	if _downed_time < Config.REVIVE_MIN_DOWNED:
 		return
 	_tagged = false
 	_revive_timer = 0.0
@@ -477,6 +487,7 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector3(0.0, _y_vel, 0.0)
 		move_and_slide()
 		_revive_timer += delta
+		_downed_time += delta
 		if _revive_timer >= Config.REVIVE_AUTO_TIMEOUT:
 			_return_to_spawn()
 		# presentation: stay in dead pose; rig handles it

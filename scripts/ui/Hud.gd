@@ -25,12 +25,20 @@ var _qte_ball: Node = null
 var _qte_mode := "timing"
 var _qte_key: int = KEY_F            # the key to press in "key" mode (int keycode)
 var _qte_last_key: int = KEY_NONE    # so the key never repeats back-to-back
-# Keys that are NOT bound to any game action (WASD/E/R/V/N/Space/Shift/Ctrl/Tab/Esc
-# are taken). Safe to demand for the key-press QTE.
-const QTE_KEY_POOL: Array = [
-	KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L,
-	KEY_Q, KEY_T, KEY_Y, KEY_Z, KEY_X, KEY_B, KEY_M
-]
+# Candidate keys for the key-press QTE: every letter and digit. The picker
+# filters this against the LIVE InputMap each pick, so whatever the player has
+# bound (defaults OR rebinds) is excluded automatically — rebinding updates the
+# effective pool instantly, and the candidate space is big enough that it never
+# runs dry.
+var QTE_KEY_POOL: Array = _build_qte_candidates()
+
+static func _build_qte_candidates() -> Array:
+	var out: Array = []
+	for k in range(KEY_A, KEY_Z + 1):
+		out.append(k)
+	for k in range(KEY_0, KEY_9 + 1):
+		out.append(k)
+	return out
 var _countdown: Label = null
 # Throw QTE: mirror of the catch timing bar, but for RELEASING a throw. Reuses the
 # same _qte_panel in timing mode. _throw_qte_actor is who to call back on resolve.
@@ -39,10 +47,17 @@ var _throw_qte_actor: Node = null
 var _respawn_label: Label = null    # "tagged out — respawn in Ns" timer
 var _safe_label: Label = null       # live safe-zone countdown while resting
 var _controls_panel: Panel = null   # "how to play" hint shown at match start
+var _clock: Label = null            # match clock under the scoreboard (MM:SS / OVERTIME)
 
 func _ready() -> void:
 	add_to_group("hud")
 	Events.match_won.connect(_on_match_won)
+	# match clock, tucked under the score rows
+	_clock = Label.new()
+	_clock.add_theme_font_size_override("font_size", 18)
+	_clock.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	$Scoreboard/Rows.add_child(_clock)
 	Events.ball_banked.connect(func(_t): _refresh_scoreboard())
 	Events.ball_state_changed.connect(func(_b): _refresh_scoreboard())
 	Events.match_restart.connect(_on_restarted)
@@ -359,6 +374,14 @@ func _process(delta: float) -> void:
 	elif _hidden_for_debug:
 		_hidden_for_debug = false
 		visible = true
+	if _clock != null:
+		if GameState.overtime:
+			_clock.text = "OVERTIME"
+			_clock.add_theme_color_override("font_color", Color(1.0, 0.55, 0.25))
+		else:
+			var s: int = int(ceil(GameState.match_time_left))
+			@warning_ignore("integer_division")
+			_clock.text = "%d:%02d" % [s / 60, s % 60]
 	if player_actor != null and is_instance_valid(player_actor):
 		$StaminaWrap/Bar.value = player_actor.stamina
 		$Carry.visible = player_actor.has_target()
@@ -559,10 +582,31 @@ func _start_qte(ball: Node) -> void:
 ## Pick a key from the unused-key pool that isn't the same as last time (so the
 ## demanded key never repeats twice in a row).
 func _pick_qte_key() -> int:
+	# Exclude any key CURRENTLY bound to a game action. Keys are rebindable, so
+	# this must check the live InputMap every pick — a static safe-list breaks
+	# the moment the player rebinds (e.g. sprint onto F). Polling-based actions
+	# (sprint/crouch) can't be blocked by consuming the event, so exclusion at
+	# pick time is the only safe approach.
+	var bound := {}
+	for action in InputMap.get_actions():
+		if String(action).begins_with("ui_"):
+			continue
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventKey:
+				var ke := ev as InputEventKey
+				if ke.physical_keycode != 0:
+					bound[ke.physical_keycode] = true
+				if ke.keycode != 0:
+					bound[ke.keycode] = true
 	var choices: Array = []
 	for k in QTE_KEY_POOL:
-		if k != _qte_last_key:
+		if k != _qte_last_key and not bound.has(k):
 			choices.append(k)
+	# fallback ladder: allow a repeat before ever allowing a bound key
+	if choices.is_empty():
+		for k in QTE_KEY_POOL:
+			if not bound.has(k):
+				choices.append(k)
 	if choices.is_empty():
 		choices = QTE_KEY_POOL.duplicate()
 	return choices[randi() % choices.size()]

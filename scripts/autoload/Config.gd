@@ -15,6 +15,7 @@ const STAMINA_MAX := 100.0
 const SPRINT_DRAIN := 42.0
 const SPRINT_RECOVER_FRAC := 0.25  # once gassed (0 stamina), must recover to 25% before sprinting again
 const TAG_HEIGHT_TOL := 3.0        # can't tag someone this far above/below you (jump apex is 3.6, so a jump now dodges through most of its arc)
+const REVIVE_MIN_DOWNED := 5.0     # a tagged player must stay down this long before any revive (stops the tag-loop jitter)
 const REVIVE_TAG_GRACE := 1.2      # seconds of untaggable after a revive (stops tag-camping)  # once gassed (0 stamina), must recover to 25% before sprinting again
 const WALK_REGEN := 14.0            # slower on-the-move recovery, so pods matter
 const POD_REGEN := 72.0

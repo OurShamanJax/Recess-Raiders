@@ -31,6 +31,11 @@ var winner: String = ""
 
 # Live counts of steal-targets currently belonging to each team (cones + balls).
 var counts := {"blue": 0, "red": 0}
+# MATCH CLOCK: 15-minute games. If tied at 0:00 we go to OVERTIME — next score
+# wins (golden goal). Ticked here (autoload _process) only while PLAYING.
+const MATCH_LENGTH := 15.0 * 60.0
+var match_time_left: float = MATCH_LENGTH
+var overtime := false
 # Starting totals, captured at match start, used to derive score.
 var start_totals := {"blue": 0, "red": 0}
 
@@ -93,6 +98,8 @@ func get_threat_beliefs(team: String) -> Array:
 
 func reset() -> void:
 	phase = Phase.TITLE
+	match_time_left = MATCH_LENGTH
+	overtime = false
 	winner = ""
 	debug_mode = false
 	counts = {"blue": 0, "red": 0}
@@ -117,6 +124,25 @@ func set_counts(blue: int, red: int) -> void:
 	counts.red = red
 	if phase == Phase.PLAYING and (blue == 0 or red == 0):
 		_finish("blue" if red == 0 else "red")
+		return
+	# golden goal: first score change that breaks the tie ends overtime
+	if phase == Phase.PLAYING and overtime:
+		var sb := score_for("blue")
+		var sr := score_for("red")
+		if sb != sr:
+			_finish("blue" if sb > sr else "red")
+
+func _process(delta: float) -> void:
+	if phase != Phase.PLAYING or overtime:
+		return
+	match_time_left = maxf(0.0, match_time_left - delta)
+	if match_time_left <= 0.0:
+		var sb := score_for("blue")
+		var sr := score_for("red")
+		if sb == sr:
+			overtime = true   # sudden death: next score wins
+		else:
+			_finish("blue" if sb > sr else "red")
 
 func _finish(team: String) -> void:
 	phase = Phase.FINISHED

@@ -13,15 +13,20 @@ const MODEL_SCALE := 4.5                     # clearly adult — ~1.6x the kids'
 # clip key -> source glb + internal animation name
 const CLIPS := {
 	"alert": ["res://assets/character/coach/coach_alert.glb", "Armature|Alert|baselayer"],
-	"walk": ["res://assets/character/coach/coach_walk_casual.glb", "Armature|Casual_Walk|baselayer"],
+	"walk": ["res://assets/character/coach/coach_walk.glb", "Armature|walking_man|baselayer"],
 	"run": ["res://assets/character/coach/coach_run.glb", "Armature|running|baselayer"],
-	"walk_unsteady": ["res://assets/character/coach/coach_walk_unsteady.glb", "Armature|Unsteady_Walk|baselayer"],
-	"dance_boom": ["res://assets/character/coach/coach_dance_boom.glb", "Armature|Boom_Dance|baselayer"],
-	"dance_groove": ["res://assets/character/coach/coach_dance_groove.glb", "Armature|You_Groove|baselayer"],
-	"boxing": ["res://assets/character/coach/coach_boxing.glb", "Armature|Boxing_Practice|baselayer"],
+	"cheer": ["res://assets/character/coach/coach_cheer.glb", "Armature|Cheer_with_Both_Hands|baselayer"],
+	"cheer2": ["res://assets/character/coach/coach_cheer2.glb", "Armature|Cheer_with_Both_Hands_1|baselayer"],
+	"stomp": ["res://assets/character/coach/coach_stomp.glb", "Armature|Angry_Ground_Stomp|baselayer"],
 	"agree": ["res://assets/character/coach/coach_agree.glb", "Armature|Agree_Gesture|baselayer"],
-	"skill1": ["res://assets/character/coach/coach_skill1.glb", "Armature|Skill_01|baselayer"],
-	"skill3": ["res://assets/character/coach/coach_skill3.glb", "Armature|Skill_03|baselayer"],
+	"dance_boom": ["res://assets/character/coach/coach_dance_boom.glb", "Armature|Boom_Dance|baselayer"],
+	"dance_cardio": ["res://assets/character/coach/coach_dance_cardio.glb", "Armature|Cardio_Dance|baselayer"],
+	"dance_groove": ["res://assets/character/coach/coach_dance_groove.glb", "Armature|Gangnam_Groove|baselayer"],
+	"dance_night": ["res://assets/character/coach/coach_dance_night.glb", "Armature|All_Night_Dance|baselayer"],
+	"backflip": ["res://assets/character/coach/coach_backflip.glb", "Armature|Backflip_Jump|baselayer"],
+	"sit": ["res://assets/character/coach/coach_sit.glb", "Armature|Stand_to_Sit_Transition_M|baselayer"],
+	"stand": ["res://assets/character/coach/coach_stand.glb", "Armature|Sit_to_standTransition_Female_2|baselayer"],
+	"sit_idle": ["res://assets/character/coach/coach_sitidle.glb", "Armature|Sitting_Clap|baselayer"],
 }
 
 # per-mood quip pools
@@ -59,8 +64,17 @@ var _zone_center := Vector3.ZERO
 var _player: Node3D = null
 var _zone_half := Vector3(4.0, 0, 70.0)      # thin strip along X, paces the length in Z
 var _target := Vector3.ZERO
-var _speed := 14.0
+var _speed := 18.0
 var _mood_timer := 0.0
+# bench break: every now and then the coach walks to the nearest bench, sits and
+# claps for a bit, then gets back up and resumes patrol. Purely cosmetic charm.
+const BENCH_XS := 63.2          # just in front of the bench row (benches at x=65)
+const BENCH_ZS := [80.0, 45.0, -45.0, -80.0]
+var _sit_state := 0             # 0 none, 1 walk-to-bench, 2 sitting-down, 3 seated, 4 standing-up
+var _sit_timer := 0.0
+var _bench_break_cd := 50.0     # first break ~50s in; then randomized
+var _bench_target := Vector3.ZERO
+var _pre_sit_y := 0.0
 var _emote_cooldown := 0.0    # forced patrol time after an emote, so he keeps following the player
 var _quip_timer := 0.0
 
@@ -210,10 +224,18 @@ func _process(delta: float) -> void:
 	_tick_bubble(delta)
 
 func _wander(delta: float) -> void:
-	# emote moods stand still and perform; idle = patrol the sideline.
+	# bench break has its own little state machine (walk over, sit, clap, stand)
+	if _sit_state != 0:
+		_tick_bench(delta)
+		return
+	# emote moods stand still and perform FACING THE FIELD (face_field is set once
+	# by _set_mood; re-asserting the player every frame made him snap oddly).
 	if _mood != Mood.IDLE:
-		# even while emoting, keep facing the player
-		_face_player()
+		return
+	# occasionally take a bench break when nothing exciting is happening
+	_bench_break_cd -= delta
+	if _bench_break_cd <= 0.0:
+		_start_bench_break()
 		return
 	# track the player: run up and down the sideline to stay level with them on
 	# Z, so the coach mirrors where the action is. Player is the orbit centre.
@@ -227,11 +249,17 @@ func _wander(delta: float) -> void:
 	if d > 1.0:
 		var dir := to / d
 		global_position += dir * _speed * delta
-		_set_anim("run" if d > 18.0 else "walk")
+		# run animation kicks in sooner so he reads as actively sprinting the
+		# sideline to keep up with the action, walking only for small adjustments
+		_set_anim("run" if d > 6.0 else "walk")
+		# FACE WHERE HE'S GOING while moving (was: always facing the field, which
+		# made him sprint sideways like a crab). He turns to the field when he
+		# stops or emotes.
+		rotation.y = atan2(dir.x, dir.z)
 	else:
 		_set_anim("alert")
+		_face_player()
 	_clamp_to_zone()
-	_face_player()
 
 ## Always turn to face the player (so the coach watches the action).
 func _face_player() -> void:
@@ -281,23 +309,78 @@ func _tick_bubble(delta: float) -> void:
 		_bubble.modulate = Color(1, 1, 1, 0)
 
 func _set_mood(m: int) -> void:
+	if _sit_state != 0:
+		return   # no emoting mid bench-break; he is off the clock
 	_mood = m
 	match m:
 		Mood.IDLE:
 			_set_anim("walk")
 		Mood.HAPPY:
 			_mood_timer = 5.5
-			_set_anim("dance_boom" if randf() < 0.5 else "dance_groove")
+			# a random dance from the coach's repertoire
+			_set_anim(["dance_boom", "dance_cardio", "dance_groove", "dance_night"].pick_random())
 			face_field()
 		Mood.ANGRY:
-			_mood_timer = 5.0
-			_set_anim("boxing")
+			_mood_timer = 4.5
+			# stomp the ground in frustration
+			_set_anim("stomp")
 			face_field()
 		Mood.HYPE:
-			_mood_timer = 4.5
-			_set_anim("skill1" if randf() < 0.5 else "skill3")
+			_mood_timer = 4.0
+			# cheer the team on (occasionally a celebratory backflip)
+			_set_anim(["cheer", "cheer2", "cheer", "backflip"].pick_random())
 			face_field()
 	_say_quip(m)
+
+func _start_bench_break() -> void:
+	# nearest bench along the sideline row
+	var bz: float = BENCH_ZS[0]
+	for z in BENCH_ZS:
+		if absf(z - global_position.z) < absf(bz - global_position.z):
+			bz = z
+	_bench_target = Vector3(BENCH_XS, 0.0, bz)
+	_sit_state = 1
+
+func _tick_bench(delta: float) -> void:
+	match _sit_state:
+		1:   # walk over to the bench spot
+			var to: Vector3 = _bench_target - global_position
+			to.y = 0
+			var d := to.length()
+			if d > 1.2:
+				var dir := to / d
+				global_position += dir * (_speed * 0.55) * delta
+				rotation.y = atan2(dir.x, dir.z)
+				_set_anim("walk")
+			else:
+				# arrived: face the field and sit down (lift onto the seat)
+				face_field()
+				_pre_sit_y = global_position.y
+				global_position.y = 2.3      # bench seat height (scale-4 bench)
+				global_position.x = 64.2     # scoot back onto the seat
+				_set_anim("sit")
+				_sit_state = 2
+				_sit_timer = 1.6             # sit-down transition length to show
+		2:   # sitting down -> seated clap
+			_sit_timer -= delta
+			if _sit_timer <= 0.0:
+				_set_anim("sit_idle")
+				_sit_state = 3
+				_sit_timer = randf_range(8.0, 13.0)
+		3:   # seated, clapping along with the game
+			_sit_timer -= delta
+			if _sit_timer <= 0.0:
+				_set_anim("stand")
+				_sit_state = 4
+				_sit_timer = 1.5
+		4:   # standing back up -> resume patrol
+			_sit_timer -= delta
+			if _sit_timer <= 0.0:
+				global_position.y = _pre_sit_y
+				global_position.x = _zone_center.x
+				_sit_state = 0
+				_bench_break_cd = randf_range(60.0, 110.0)
+				_set_anim("alert")
 
 func face_field() -> void:
 	# turn to face the playing field — toward field center on X (he stands at X=±61)
