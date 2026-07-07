@@ -5,7 +5,7 @@ Two teams of kids face off across a field split by a wall of cones. Raid the ene
 half, snatch their cones and footballs, and haul the loot home before you get
 tagged. **Steal their entire stash to win.**
 
-*Inspired by 2 Berry — the recess game every kid in class begged to play.*
+*Inspired by 2 Berry — the gym game every kid in class begged to play.*
 
 ## Features
 
