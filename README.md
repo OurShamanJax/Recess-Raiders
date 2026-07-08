@@ -5,7 +5,7 @@ Two teams of kids face off across a field split by a wall of cones. Raid the ene
 half, snatch their cones and footballs, and haul the loot home before you get
 tagged. **Steal their entire stash to win.**
 
-*Inspired by 2 Berry — the recess game every kid in class begged to play.*
+*Inspired by 2 Berry — the gym game every kid in class begged to play.*
 
 ## Features
 
@@ -62,9 +62,6 @@ aiming. You can only tag intruders on your half or loot-carriers.
 **Reviving:** a tagged teammate is out until someone presses **R** next to them
 (or 30 seconds pass). Reviving wins matches — be the hero.
 
-**The cone wall:** the midline cones knock over and **block enemy sight lines** —
-sneak behind them to flank.
-
 ## Controls
 
 | Action | Key |
@@ -81,12 +78,13 @@ sneak behind them to flank.
 | Switch camera | **V** |
 | Pause / settings | **Esc** (Resume / Settings / Main Menu / Exit) |
 
+**Tab** — toggle the live scoreboard (points, tags, saves, ranks).
+
 ## Tips
 
 - Sprint in bursts — a gassed kid walks until stamina recovers *and* you re-press
   sprint.
 - In a pile-up, aim at the *specific* kid you want to tag.
-- Sneak up behind AI — they only react to what their vision cone sees.
 - A pass to a teammate near the midline beats running the whole way yourself.
 
 ## For developers

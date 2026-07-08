@@ -233,10 +233,13 @@ func _wander(delta: float) -> void:
 	if _mood != Mood.IDLE:
 		return
 	# occasionally take a bench break when nothing exciting is happening
-	_bench_break_cd -= delta
-	if _bench_break_cd <= 0.0:
-		_start_bench_break()
-		return
+	# benches only exist on the +X sideline; a red-team coach (on -X) would have
+	# to cross the live field to reach them — so he just doesn't take breaks.
+	if _zone_center.x > 0.0:
+		_bench_break_cd -= delta
+		if _bench_break_cd <= 0.0:
+			_start_bench_break()
+			return
 	# track the player: run up and down the sideline to stay level with them on
 	# Z, so the coach mirrors where the action is. Player is the orbit centre.
 	var target_z := _zone_center.z

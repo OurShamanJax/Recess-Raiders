@@ -47,7 +47,10 @@ var _throw_qte_actor: Node = null
 var _respawn_label: Label = null    # "tagged out — respawn in Ns" timer
 var _safe_label: Label = null       # live safe-zone countdown while resting
 var _controls_panel: Panel = null   # "how to play" hint shown at match start
-var _clock: Label = null            # match clock under the scoreboard (MM:SS / OVERTIME)
+var _clock: Label = null
+var _lb: PanelContainer = null      # Tab leaderboard popup
+var _lb_body: HBoxContainer = null
+var _lb_refresh := 0.0            # match clock under the scoreboard (MM:SS / OVERTIME)
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -352,8 +355,8 @@ func bind(a: Node, m: Node, cam: Camera3D = null) -> void:
 			quit_btn.pressed.connect(_on_quit_pressed)
 
 func _refresh_scoreboard() -> void:
-	var blue_score := GameState.score_for("blue")
-	var red_score := GameState.score_for("red")
+	var blue_score: int = GameState.score_for("blue")
+	var red_score: int = GameState.score_for("red")
 	$Scoreboard/Rows/BlueRow/BlueScore.text = str(blue_score)
 	$Scoreboard/Rows/RedRow/RedScore.text = str(red_score)
 	# mark which side the player is on
@@ -374,6 +377,14 @@ func _process(delta: float) -> void:
 	elif _hidden_for_debug:
 		_hidden_for_debug = false
 		visible = true
+	# Tab leaderboard: toggle + periodic refresh while open
+	if Input.is_action_just_pressed("show_scoreboard") and GameState.phase == GameState.Phase.PLAYING and not GameState.debug_mode:
+		_toggle_leaderboard()
+	if _lb != null and _lb.visible:
+		_lb_refresh -= delta
+		if _lb_refresh <= 0.0:
+			_lb_refresh = 0.5
+			_fill_leaderboard()
 	if _clock != null:
 		if GameState.overtime:
 			_clock.text = "OVERTIME"
@@ -784,15 +795,21 @@ func _on_match_won(team: String) -> void:
 		_lock_reticle.visible = false
 	$EndScreen/Panel/VBox/Title.text = "VICTORY!" if won else "DEFEAT"
 	$EndScreen/Panel/VBox/Title.modulate = Color(0.4, 0.85, 0.5) if won else Color(0.9, 0.4, 0.36)
-	var ws := GameState.score_for(GameState.user_team)
-	var ls := GameState.score_for(Config.enemy_of(GameState.user_team))
-	var s: Dictionary = GameState.stats
+	var ws: int = GameState.score_for(GameState.user_team)
+	var ls: int = GameState.score_for(Config.enemy_of(GameState.user_team))
+	# your row from the live per-kid registry (same data as the Tab scoreboard)
+	var s: Dictionary = {}
+	for row in GameState.stats.values():
+		if row.user:
+			s = row
+			break
 	var detail := ""
 	detail = "Final score  —  you %d, them %d\n\n" % [ws, ls]
 	detail += "Your match:\n"
-	detail += "  Steals banked:   %d\n" % int(s.get("steals", 0))
-	detail += "  Tags made:        %d\n" % int(s.get("tags_made", 0))
-	detail += "  Times tagged:    %d" % int(s.get("times_tagged", 0))
+	detail += "  Points banked:   %d\n" % int(s.get("pts", 0))
+	detail += "  Tags made:        %d\n" % int(s.get("tags", 0))
+	detail += "  Teammates saved: %d\n" % int(s.get("saves", 0))
+	detail += "  Times tagged:    %d" % int(s.get("outs", 0))
 	$EndScreen/Panel/VBox/Detail.text = detail
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -811,3 +828,80 @@ func _on_restarted() -> void:
 	_refresh_scoreboard()
 	if GameState.cam_mode == "fp":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+# ---------------------------------------------------------------- leaderboard --
+## Tab popup: every kid ranked per team by match impact. The same GameState.stats
+## feed the future win/lose screen. (Headshot thumbnails: follow-up — the selector
+## renders those via live viewports, too heavy to spawn 20 of mid-match.)
+func _toggle_leaderboard() -> void:
+	if _lb == null:
+		# full-rect CenterContainer = genuinely centred panel at any resolution
+		var lb_wrap := CenterContainer.new()
+		lb_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lb_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(lb_wrap)
+		_lb = PanelContainer.new()
+		_lb.custom_minimum_size = Vector2(820, 430)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.07, 0.09, 0.13, 0.94)
+		sb.set_corner_radius_all(10)
+		sb.set_content_margin_all(16)
+		_lb.add_theme_stylebox_override("panel", sb)
+		lb_wrap.add_child(_lb)
+		var v := VBoxContainer.new()
+		_lb.add_child(v)
+		var title := Label.new()
+		title.text = "SCOREBOARD"
+		title.add_theme_font_size_override("font_size", 26)
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(title)
+		_lb_body = HBoxContainer.new()
+		_lb_body.add_theme_constant_override("separation", 26)
+		v.add_child(_lb_body)
+	_lb.visible = not _lb.visible
+	if _lb.visible:
+		_fill_leaderboard()
+
+func _fill_leaderboard() -> void:
+	for c in _lb_body.get_children():
+		c.queue_free()
+	for tm in ["blue", "red"]:
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_lb_body.add_child(col)
+		var hdr := Label.new()
+		hdr.text = tm.to_upper() + "   pts / tags / saves / ins / outs"
+		hdr.add_theme_color_override("font_color", Color(0.45, 0.7, 1.0) if tm == "blue" else Color(1.0, 0.5, 0.45))
+		col.add_child(hdr)
+		var rows: Array = []
+		for key in GameState.stats.keys():
+			var s: Dictionary = GameState.stats[key]
+			if s.team != tm:
+				continue
+			var impact: int = s.pts * 5 + s.tags * 2 + s.saves * 2 - s.outs
+			rows.append([impact, key, s])
+		rows.sort_custom(func(x, y): return x[0] > y[0])
+		var rank := 1
+		for r in rows:
+			var s2: Dictionary = r[2]
+			if rank > 10:
+				break
+			var hrow := HBoxContainer.new()
+			var icon := TextureRect.new()
+			icon.custom_minimum_size = Vector2(26, 26)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			var tex = GameState.headshots.get(String(s2.get("char", "")), null)
+			if tex != null:
+				icon.texture = tex
+			hrow.add_child(icon)
+			var who: String = String(s2.get("label", r[1])) + (" (you)" if s2.user else "")
+			var l := Label.new()
+			l.text = "%2d. %-14s %d / %d / %d / %d / %d" % [rank, who, s2.pts, s2.tags, s2.saves, s2.ins, s2.outs]
+			l.add_theme_font_size_override("font_size", 15)
+			if s2.user:
+				l.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
+			hrow.add_child(l)
+			col.add_child(hrow)
+			rank += 1

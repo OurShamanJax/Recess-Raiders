@@ -40,7 +40,7 @@ var fov_third_person := 62.0        # FOV in third person (degrees)
 ## soft-lock themselves out of the menu).
 const REBINDABLE := ["move_forward", "move_back", "move_left", "move_right",
 	"sprint", "jump", "crouch", "interact", "revive", "toggle_cam",
-	"throw_ball", "pass_ball", "cycle_lock", "catch_qte"]
+	"throw_ball", "pass_ball", "cycle_lock", "catch_qte", "show_scoreboard"]
 # action -> serialized event dict ({"t":"key","code":int} / {"t":"mouse","btn":int}
 # / {"t":"none"} for deliberately unbound). Empty dict = project defaults.
 var keybinds := {}

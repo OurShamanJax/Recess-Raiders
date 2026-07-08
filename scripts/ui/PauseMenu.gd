@@ -84,10 +84,11 @@ func _build_settings_tabs() -> void:
 			return
 		Settings.reset_progress()
 		wipe.text = "Delete Your Progress"
-		# back to the main menu (also un-pauses if we were mid-match)
-		visible = false
-		get_tree().paused = false
-		Events.main_menu_requested.emit())
+		# back to the main menu (only if we're actually in a match)
+		if GameState.phase == GameState.Phase.PLAYING or GameState.phase == GameState.Phase.COUNTDOWN:
+			visible = false
+			get_tree().paused = false
+			Events.main_menu_requested.emit())
 
 	# --- Graphics tab ---
 	var gx := _new_tab(tabs, "Graphics")

@@ -23,6 +23,8 @@ var _job: int = Job.IDLE
 var _job_target: Node = null
 var _job_point: Vector3 = Vector3.ZERO
 var _commit := 0.0                 # time left committed to current job
+var _opening_t := 25.0             # opening phase: roles are split (see setup)
+var _opening_raider := true        # my opening role
 var _current_score := 0.0          # score of the currently committed job (for hysteresis)
 var _t := 0.0
 const _SENSE_INTERVAL := 0.1        # sense ~10x/sec instead of 60x/sec
@@ -44,6 +46,18 @@ var _lane_wander := 0.0            # occasional sideways lane offset (horizontal
 var _team_play := 1.0              # >1 passes & supports more
 var _hustle := 1.0                 # >1 sprints/commits more
 
+## Fraction of my team currently tagged out (0..1) — drives crisis rescue.
+func _team_down_ratio() -> float:
+	var total := 0
+	var down := 0
+	for k in GameState.actors():
+		if not is_instance_valid(k) or k.team != actor.team:
+			continue
+		total += 1
+		if k.is_tagged():
+			down += 1
+	return (float(down) / float(total)) if total > 0 else 0.0
+
 func setup(p_actor: Node) -> void:
 	super.setup(p_actor)
 	perception = Perception.new(p_actor)
@@ -54,6 +68,11 @@ func setup(p_actor: Node) -> void:
 	# personality spread
 	_brave = randf_range(0.7, 1.4)
 	_team_play = randf_range(0.7, 1.4)
+	# OPENING ROLES: not everyone charges at kickoff. ~40% start as holders
+	# (defend/hold the line ~25s) so a lost opening clash can't steamroll us —
+	# there's always a home guard to tag intruders and pick people up.
+	_opening_raider = randf() > 0.4
+	_opening_t = 25.0
 	_hustle = randf_range(0.8, 1.3)
 
 func build_intent(delta: float) -> Intent:
@@ -63,6 +82,7 @@ func build_intent(delta: float) -> Intent:
 	if a.is_tagged():
 		_release_claim()
 		return intent
+	_opening_t = maxf(0.0, _opening_t - delta)
 
 	_facing = Vector3(sin(a.heading), 0, cos(a.heading))
 	# PERFORMANCE: perception (scanning all actors + raycasts) is the biggest
@@ -143,6 +163,7 @@ func build_intent(delta: float) -> Intent:
 			if _stuck_time > 1.2:
 				_stuck_time = 0.0
 				_commit = 0.0                       # re-decide next frame
+				_release_claim()                    # stale claim freed too
 				var ang := randf() * TAU
 				intent.move = (intent.move + Vector3(cos(ang), 0, sin(ang)) * 1.5).normalized()
 		else:
@@ -279,7 +300,14 @@ func _choose_job() -> void:
 	# --- option: ENGAGE a nearby enemy anywhere (incl. the contested middle) so
 	# the teams actually clash instead of mutually avoiding at the border. Lower
 	# weight than defending our own half, but enough to break the stalemate.
-	for e2 in _nearby_enemies(22.0):
+	var skip_engage := false
+	for d2 in _downed_teammates():
+		if d2.downed_time() < Config.REVIVE_MIN_DOWNED - 1.5:
+			continue   # still deep in tag-out cooldown — fighting is fine meanwhile
+		if actor.global_position.distance_to(d2.global_position) < 26.0:
+			skip_engage = true   # a friend needs picking up — that comes first
+			break
+	for e2 in ([] if skip_engage else _nearby_enemies(22.0)):
 		if e2.is_tagged():
 			continue
 		var epx: Vector3 = e2.global_position
@@ -287,7 +315,7 @@ func _choose_job() -> void:
 		var proxx: float = 1.0 - clampf(distx / 22.0, 0.0, 1.0)
 		var urg2 := 1.8 if e2.has_target() else 1.0   # chase carriers hard
 		var claim_penx := 0.5 if _is_claimed_by_other(e2) else 1.0
-		var scorex: float = 58.0 * proxx * urg2 * claim_penx * _brave * Config.ai_val("aggro")
+		var scorex: float = 52.0 * proxx * urg2 * claim_penx * _brave * Config.ai_val("aggro")
 		if scorex > best_score:
 			best_score = scorex; best_job = Job.CHASE; best_target = e2; best_point = epx
 
@@ -297,6 +325,13 @@ func _choose_job() -> void:
 		var dist3: float = a.global_position.distance_to(dp)
 		if dist3 > Config.RESCUE_MAX_DIST:
 			continue
+		# TAG-OUT COOLDOWN TIMING: a fresh body can't be revived for
+		# REVIVE_MIN_DOWNED seconds. Only commit if they'll be revivable by
+		# roughly the time we arrive — otherwise bots cluster around the body
+		# waiting (and the stuck-nudge yanks them away right before it unlocks).
+		var travel_eta: float = dist3 / 22.0   # ~sprint speed with pathing slack
+		if d.downed_time() + travel_eta < Config.REVIVE_MIN_DOWNED - 0.4:
+			continue
 		var prox3: float = 1.0 - 0.5 * clampf(dist3 / Config.RESCUE_MAX_DIST, 0.0, 1.0)
 		var claim_pen3 := 0.4 if _is_claimed_by_other(d) else 1.0
 		# revive trait floored at 0.7 so even casual bots help a downed teammate
@@ -304,8 +339,12 @@ func _choose_job() -> void:
 		# and a proximity kicker: a bot standing right next to a body almost always
 		# stops to help.
 		var revive_w: float = maxf(0.7, Config.ai_val("revive"))
-		var close_kick: float = 1.6 if dist3 < 14.0 else 1.0
-		var score3: float = 92.0 * prox3 * revive_w * claim_pen3 * _team_play * close_kick
+		# standing next to a body => overwhelming urge to help (2x within 16u).
+		var close_kick: float = 2.0 if dist3 < 16.0 else 1.0
+		# TEAM CRISIS: when lots of us are down, survivors drop everything and
+		# pick people up — this is what stops the opening-clash steamroll.
+		var crisis: float = 1.0 + 1.4 * _team_down_ratio()
+		var score3: float = 115.0 * prox3 * revive_w * claim_pen3 * _team_play * close_kick * crisis
 		if score3 > best_score:
 			best_score = score3; best_job = Job.RESCUE; best_target = d; best_point = dp
 
@@ -333,7 +372,10 @@ func _choose_job() -> void:
 	# close enough to perceive a ball/cone, GRAB takes over. Without this, bots
 	# with no visible target just sat at the border.
 	if a.stamina > Config.GASSED_STAMINA:
-		var raid_score: float = 55.0 * (0.3 + raid_bias) * _brave * off_mult
+		# opening holders sit back for the first ~25s instead of joining the
+		# kickoff stampede — the anti-steamroll home guard.
+		var opening_mult: float = 1.0 if (_opening_raider or _opening_t <= 0.0) else 0.15
+		var raid_score: float = 55.0 * (0.3 + raid_bias) * _brave * off_mult * opening_mult
 		if raid_score > best_score:
 			best_score = raid_score; best_job = Job.RAID; best_target = null
 			best_point = _enemy_stash_point()
@@ -771,7 +813,7 @@ func _lane_travel(dest: Vector3) -> Vector3:
 ## path passes within reach soon (simple linear look-ahead on its velocity).
 func _intercept_chance() -> Vector3:
 	var a := actor
-	for b in Engine.get_main_loop().get_nodes_in_group("balls"):
+	for b in GameState.balls():
 		if not is_instance_valid(b) or b.get_state() != 2:   # 2 = IN_FLIGHT
 			continue
 		var thrower: Node = b.thrower

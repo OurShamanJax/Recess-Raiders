@@ -135,9 +135,10 @@ func _begin_raiders(user_team: String, cam_mode: String) -> void:
 	GameState.capture_start_totals()
 	Events.match_started.emit(user_team, cam_mode)
 	if cam_mode == "orbit":
-		# demo/menu-background match: no countdown, just play under the skycam
+		# demo/menu-background match: no countdown, no clock, no unlock awards
 		GameState.match_time_left = GameState.MATCH_LENGTH
 		GameState.overtime = false
+		GameState.clock_running = false
 		GameState.phase = GameState.Phase.PLAYING
 	else:
 		_run_countdown()
@@ -180,6 +181,10 @@ func _run_countdown() -> void:
 	Events.countdown_tick.emit(0)        # 0 == "RAID!"
 	GameState.match_time_left = GameState.MATCH_LENGTH
 	GameState.overtime = false
+	GameState.clock_running = true
+	GameState.stats = {}   # fresh board — drop menu-demo rows
+	for k in get_tree().get_nodes_in_group("kids"):
+		GameState.stat_row(k)   # re-register: kids _ready BEFORE this wipe
 	GameState.phase = GameState.Phase.PLAYING
 
 ## Reset the match in place: re-home every carryable, reset every actor, zero the

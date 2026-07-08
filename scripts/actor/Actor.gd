@@ -26,9 +26,9 @@ var carried: Node = null               # Ball or GoalCone (or null)
 var _tagged := false
 var _revive_timer := 0.0               # counts up while tagged; auto-return at timeout
 var _downed_time := 0.0                # counts up while tagged; revive is BLOCKED until
-                                       # this passes REVIVE_MIN_DOWNED, so a surrounded
-                                       # player can't get stuck in a down->revive->down
-                                       # jitter loop when friends and enemies overlap
+									   # this passes REVIVE_MIN_DOWNED, so a surrounded
+									   # player can't get stuck in a down->revive->down
+									   # jitter loop when friends and enemies overlap
 var spawn_pos: Vector3 = Vector3.ZERO
 var _interact_cooldown := 0.0
 # Bench sitting. When _sitting, the player is snapped to _sit_pos and locked in
@@ -302,6 +302,8 @@ var incoming_pass_time: float = 0.0    # countdown while expecting the catch
 var lock_target: Node = null           # player's locked pass target (reticle), switchable
 
 func _ready() -> void:
+	add_to_group("kids")
+	GameState.stat_row(self)   # register on the scoreboard from frame one
 	add_to_group("actors")
 	# Keep the character glued to the ground when walking over terrain whose
 	# height changes (up or down). Without a snap length, descending a slope
@@ -393,15 +395,17 @@ func eject_from_safe(zone_center: Vector3) -> void:
 	global_position.y = 0.0
 
 # --- tagging / revive --------------------------------------------------------
+func _post_revive_credit() -> void:
+	pass   # marker: revive succeeded (ins recorded above); hook for future FX
+
 func on_tagged() -> void:
+	GameState.record(self, "outs")
 	if _tagged:
 		return
 	_tagged = true
 	_sitting = false   # can't stay seated once tagged out
 	_stand_lock = 0.0  # (play_dead clears the rig's seated guard)
 	_pending_release_timer = 0.0   # a tagged thrower fumbles; no delayed release
-	if is_user:
-		GameState.bump_stat("times_tagged")
 	_revive_timer = 0.0
 	_downed_time = 0.0
 	if carried != null:
@@ -422,15 +426,20 @@ func on_tagged() -> void:
 	if rig != null:
 		rig.play_dead()
 
-func revive() -> void:
+## How long this actor has been tagged out (for AI rescue timing).
+func downed_time() -> float:
+	return _downed_time
+
+func revive() -> bool:
 	if not _tagged:
-		return
+		return false
 	# minimum-downed delay: block revives (teammate OR tag-back) until the player
 	# has been down long enough, so overlapping friends/enemies can't loop them
 	# through down->revive->down while the arise animation is still playing.
 	if _downed_time < Config.REVIVE_MIN_DOWNED:
-		return
+		return false
 	_tagged = false
+	GameState.record(self, "ins")
 	_revive_timer = 0.0
 	# back in play — restore collision (layer 1 = actors, mask 9 = world+ground).
 	# The player keeps the extra school/terrain layer (16) so they don't start
@@ -440,8 +449,10 @@ func revive() -> void:
 	# brief untaggable grace so the enemy who downed you can't camp the body and
 	# re-tag the instant a teammate picks you up
 	_tag_grace = Config.REVIVE_TAG_GRACE
+	_post_revive_credit()
 	if rig != null:
 		rig.play_arise()
+	return true
 
 func _return_to_spawn() -> void:
 	_tagged = false
@@ -536,13 +547,13 @@ func _physics_process(delta: float) -> void:
 		var tt := best_tag_target()
 		if tt != null:
 			tt.on_tagged()
-			if is_user:
-				GameState.bump_stat("tags_made")
+			GameState.record(self, "tags")
 			_tag_cooldown = 0.25
 	if it.want_revive:
 		var rt := best_revive_target()
 		if rt != null:
-			rt.revive()
+			if rt.revive():
+				GameState.record(self, "saves")
 
 	# --- revive a downed teammate you're standing on (legacy auto) -----------
 	if it.want_interact:
@@ -682,6 +693,7 @@ func _physics_process(delta: float) -> void:
 		var npc_target := _npc_tag_target()
 		if npc_target != null:
 			npc_target.on_tagged()
+			GameState.record(self, "tags")
 			_tag_cooldown = 0.25
 
 	# --- drive the rig (presentation) ----------------------------------------
@@ -744,7 +756,8 @@ func _try_revive_nearby() -> void:
 		if o == self or o.team != team or not o.is_tagged():
 			continue
 		if global_position.distance_to(o.global_position) < Config.REVIVE_RADIUS:
-			o.revive()
+			if o.revive():
+				GameState.record(self, "saves")
 			return
 
 ## Release whatever we're carrying WITHOUT banking or snapping it home — used
@@ -918,8 +931,7 @@ func _bank() -> void:
 	b.home_pos = Vector3(randf_range(-30, 30), 1.6, gz + randf_range(-8, 8))
 	b.to_home()
 	_set_carried(null)
-	if is_user:
-		GameState.bump_stat("steals")
+	GameState.record(self, "pts")
 	Events.ball_banked.emit(team)
 
 func _lerp_angle(a: float, b: float, t: float) -> float:

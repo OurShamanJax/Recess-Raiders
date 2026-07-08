@@ -18,15 +18,6 @@ var debug_mode: bool = false
 var mode: String = "raiders"        # only "raiders" now (tennis removed); kept for the mode seam
 var player_model: String = ""       # chosen player model id (empty = team default)
 
-# --- match stats (for the end-of-match summary) -----------------------------
-var stats := {"steals": 0, "tags_made": 0, "times_tagged": 0, "passes": 0, "points": 0}
-
-func reset_stats() -> void:
-	stats = {"steals": 0, "tags_made": 0, "times_tagged": 0, "passes": 0, "points": 0}
-
-func bump_stat(key: String, by: int = 1) -> void:
-	if stats.has(key):
-		stats[key] += by
 var winner: String = ""
 
 # Live counts of steal-targets currently belonging to each team (cones + balls).
@@ -36,6 +27,9 @@ var counts := {"blue": 0, "red": 0}
 const MATCH_LENGTH := 15.0 * 60.0
 var match_time_left: float = MATCH_LENGTH
 var overtime := false
+var clock_running := false   # true only for REAL matches — the menu's background
+                             # demo also has phase=PLAYING but must not tick the
+                             # clock (or hand out unlocks when it "finishes")
 # Starting totals, captured at match start, used to derive score.
 var start_totals := {"blue": 0, "red": 0}
 
@@ -48,6 +42,40 @@ var ai_claims := {}
 # via this layer with a time decay, so the team feels like it's reacting together
 # rather than 14 individuals.
 var ai_threat_beliefs := {"blue": [], "red": []}
+
+# PER-KID MATCH STATS for the Tab scoreboard (and the future win/lose screen).
+# key = actor node name -> {team, user, pts, tags, saves, outs, ins}
+var stats := {}
+# character headshot textures cached by the selector's renderer (def id -> ImageTexture)
+var headshots := {}
+
+func stat_row(a: Node) -> Dictionary:
+	var key := String(a.name)
+	if not stats.has(key):
+		stats[key] = {"team": a.team, "user": a.is_user, "label": _label_for(a), "char": _char_id(a), "pts": 0, "tags": 0, "saves": 0, "outs": 0, "ins": 0}
+	elif String(stats[key].get("label", "")).begins_with("Kid"):
+		stats[key]["label"] = _label_for(a)   # rig/def may not exist yet in _ready; retry
+		stats[key]["char"] = _char_id(a)
+	return stats[key]
+
+## Friendly display name: the character's def display_name (rig may lag _ready).
+func _char_id(a: Node) -> String:
+	if "rig" in a and a.rig != null and a.rig.has_method("get_def") and a.rig.get_def() != null:
+		return String(a.rig.get_def().id)
+	return ""
+
+func _label_for(a: Node) -> String:
+	if a.is_user:
+		return "You"
+	if "rig" in a and a.rig != null and a.rig.has_method("get_def") and a.rig.get_def() != null:
+		return String(a.rig.get_def().display_name)
+	return "Kid"
+
+func record(a: Node, field: String) -> void:
+	if a == null or not is_instance_valid(a):
+		return
+	var row: Dictionary = stat_row(a)
+	row[field] = int(row[field]) + 1
 const BELIEF_TTL := 2.5     # how long a shouted threat sticks around (seconds)
 const BELIEF_MAX := 24      # hard cap so a busy fight can't balloon the list
 
@@ -57,6 +85,17 @@ const BELIEF_MAX := 24      # hard cap so a busy fight can't balloon the list
 # array per physics frame and everyone reads it, turning N*M queries into 1.
 var _actor_cache: Array = []
 var _actor_cache_frame: int = -1
+
+var _ball_cache: Array = []
+var _ball_cache_frame: int = -1
+
+func balls() -> Array:
+	# cached like actors(): one group query per physics frame, shared by all bots
+	var f: int = Engine.get_physics_frames()
+	if f != _ball_cache_frame:
+		_ball_cache_frame = f
+		_ball_cache = Engine.get_main_loop().get_nodes_in_group("balls")
+	return _ball_cache
 
 func actors() -> Array:
 	# returns the cached actor list, refreshing at most once per physics frame
@@ -100,13 +139,14 @@ func reset() -> void:
 	phase = Phase.TITLE
 	match_time_left = MATCH_LENGTH
 	overtime = false
+	clock_running = false
+	stats = {}
 	winner = ""
 	debug_mode = false
 	counts = {"blue": 0, "red": 0}
 	# clear AI working state so a new match starts clean (no stale claims/beliefs)
 	ai_claims = {}
 	ai_threat_beliefs = {"blue": [], "red": []}
-	reset_stats()
 
 ## Called once after spawning, to remember how many each side began with.
 func capture_start_totals() -> void:
@@ -133,7 +173,7 @@ func set_counts(blue: int, red: int) -> void:
 			_finish("blue" if sb > sr else "red")
 
 func _process(delta: float) -> void:
-	if phase != Phase.PLAYING or overtime:
+	if phase != Phase.PLAYING or overtime or not clock_running:
 		return
 	match_time_left = maxf(0.0, match_time_left - delta)
 	if match_time_left <= 0.0:
@@ -149,7 +189,7 @@ func _finish(team: String) -> void:
 	winner = team
 	# progression: winning on the player's team unlocks the next locked character
 	# (any team). Silent for now — the selector shows the new one next visit.
-	if team == user_team:
+	if team == user_team and clock_running:
 		_award_unlock()
 	Events.match_won.emit(team)
 

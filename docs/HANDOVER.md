@@ -319,6 +319,55 @@ Graphics / Audio / Key Bindings) inside the scene's `SettingsPanel/Panel` shell.
 Apply bottom-right. Key Bindings tab is a read-only reference list for now (rebinding TBD). The old flat-list
 builders + scroll hack + per-control member vars were removed.
 
+**Startup-crash saga RESOLVED + battery upgraded.** Three crashes in a row from the stats work, root causes:
+(1) guard 'var stats := not in file' matched a LEGACY stats dict from the old end-screen -> insert skipped;
+(2) re-insert then DUPLICATED var stats (assert only checked stat_row); (3) deleting the legacy reset line
+emptied reset_stats() -> 'Expected indented block' parse error, which gdparse ACCEPTED (gdparse is more
+lenient than Godot's parser) and Hud failed as an autoload-reference cascade. Legacy trio fully removed
+(reset_stats, bump_stat, 3 Actor call sites — new registry records the same events). MANDATORY NEW BATTERY
+STEP: the empty-BLOCK detector (func/if/elif/else/for/while/match openers; the bump_stat removals left 3 empty if-is_user blocks the func-only version missed) i.e. (regex: func line whose next code line isn't deeper-indented) runs
+with every battery — it catches the gdparse blind spot. RULES REINFORCED: guards must test for the EXACT
+symbol being added, not a lookalike; every removal needs a caller-grep for FUNCTION NAMES not just field
+patterns; asserts must verify the invariant (exactly-one declaration), not just presence.
+
+**Rescue cooldown-timing tweak + AUDIT #3 (all green).** NPCs no longer sprint to a freshly-tagged body and
+cluster: RESCUE skips a downed teammate unless downed_time + travel ETA (dist/22, ~sprint w/ slack) reaches
+REVIVE_MIN_DOWNED-0.4 — they arrive roughly as the revive unlocks. skip-engage similarly ignores friends still
+deep in cooldown (>1.5s remaining). Actor.downed_time() accessor added. AUDIT: parse 36/36, inference, empty-
+block, dup-var, res:// paths, def<->GLB (8 defs + coach), audio present — ALL CLEAN.
+
+**DELIVERY RULE (after the crash-loop).** The dup-_last_pos AIController fix was built+verified but its
+delivery turn was interrupted; the next delta (music) replaced the zip WITHOUT the fix -> user crashed on a
+bug already fixed in the container. RULE: during any crash chain, ship the FULL scripts/ + project.godot in
+one zip (convergence delivery), never a surgical delta — a missed intermediate zip must not be able to strand
+the user on a broken state. Also: every fix zip must list what state it converges to.
+
+**Menu music replaced (copyright strike).** The original menu.mp3 got a YouTube copyright claim; replaced
+with Van_Life_Rager_-_Everet_Almond.mp3 at the SAME path (assets/audio/music/menu.mp3) so zero code changes:
+AudioManager already loads menu.mp3, sets AudioStreamMP3.loop=true, and starts it via _on_welcome_finished
+after the welcome clip. welcome.mp3 untouched. Same-path swap keeps the existing .import metadata valid
+(Godot auto-reimports on hash change).
+
+**AI reactivity pass (rescue dominance, watchdog, opening roles).** Complaints: revives ignored, bots freezing,
+kickoff stampede steamrolls. FIXES: RESCUE base 92->115, close-kick 2.0x within 16u, TEAM-CRISIS multiplier
+(1 + 1.4*down_ratio) so survivors mass-rescue when a clash goes bad; engage-nearby-enemy option is SKIPPED
+entirely when a downed friend is within 26u (helping > fighting) and its base cut 58->52. WATCHDOG (merged into the PRE-EXISTING _stuck_time system after a duplicate-_last_pos crash — AIController already had 1.2s stuck->re-decide+nudge; it now ALSO releases the claim; my separate 3s watchdog was deleted as redundant. NEW BATTERY CHECK: duplicate class-scope var declarations.) Original note: if a bot
+barely moves for 3s mid-job, commit+claim are dropped and it re-decides (stale/unreachable targets no longer
+freeze bots). OPENING ROLES: 40% of each team are HOLDERS for the first 25s (RAID x0.15) forming a home guard,
+so losing the midfield clash no longer means an empty base + steamroll. Tunables: 115 rescue base, 25s opening,
+0.4 holder ratio, 3s watchdog.
+
+**Tab SCOREBOARD + README truth-pass + stats.** README: removed the false sneak/vision tip and the outdated
+cone-wall knock-over line (mid cones no longer knock over); "recess game"->"gym game" (repo already had gym —
+local had regressed). NEW: show_scoreboard action (Tab, physical 4194306, REBINDABLE list) toggles a centred
+leaderboard while PLAYING (not in debug cam): two team columns ranked 1-10 by impact = pts*5+tags*2+saves*2-outs,
+showing pts/tags/saves/ins/outs, player row highlighted "(you)". Stats: GameState.stats keyed by actor name
+({team,user,pts,tags,saves,outs,ins}); Actor registers in _ready (group "kids"), credits: banker pts, tagger
+tags, victim outs (in on_tagged), rescuer saves ONLY when revive() returns true (revive now -> bool; the 5s
+REVIVE_MIN_DOWNED block returns false so blocked attempts credit nobody), revived kid ins. stats reset in
+GameState.reset(); the future WIN/LOSE screen reads GameState.stats for its results table. Headshot thumbnails
+deferred (selector headshots are live viewport renders — 20 mid-match is too heavy; revisit with cached PNGs).
+
 **QTE key-conflict hardening.** The key-press QTE picked from a static pool commented as unbound — but keys
 are REBINDABLE, so the pool could collide the moment a player rebinds (and sprint/crouch are POLLED via
 Input.is_action_pressed, which set_input_as_handled cannot block — exclusion at pick time is the only safe

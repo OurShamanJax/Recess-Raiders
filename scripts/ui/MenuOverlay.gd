@@ -856,7 +856,9 @@ func _process_shot_queue() -> void:
 	if is_instance_valid(target) and is_instance_valid(_shot_vp):
 		var img := _shot_vp.get_texture().get_image()
 		if img != null and not img.is_empty():
-			target.texture = ImageTexture.create_from_image(img)
+			var ht := ImageTexture.create_from_image(img)
+			target.texture = ht
+			GameState.headshots[id] = ht   # shared cache: the Tab leaderboard reuses these
 	_process_shot_queue()
 
 ## First Skeleton3D under a node (the rigs have exactly one).
