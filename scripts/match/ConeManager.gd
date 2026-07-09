@@ -32,7 +32,9 @@ func _spawn_border_line() -> void:
 		body.collision_mask = 0
 		add_child(body)
 		_attach_model(body)
-		var home := Transform3D(Basis(), Vector3(x, 0, 0))
+		# centre-origin model scaled by CONE_HEIGHT*0.5: lift so the base sits ON
+		# the ground (same fix as GoalCone.REST_Y — these were sinking 1.3u).
+		var home := Transform3D(Basis(), Vector3(x, GoalCone.REST_Y, 0))
 		body.setup(home, i)
 		border_cone_positions.append(Vector3(x, 0, 0))
 

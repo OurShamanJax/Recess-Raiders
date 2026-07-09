@@ -63,6 +63,54 @@ When an enemy throw is IN_FLIGHT and its path crosses near a bot:
 Player already can do this manually; bots doing it makes passing risky and lanes
 matter.
 
+## Fairness (team asymmetry)
+
+The human replaces a bot, so the player's team is structurally 9 bots + 1 human
+vs 10. Two rules keep that fair: allies have a 'skilled' trait floor in real
+matches (Config.ai_val_for), and all prediction math is scaled by the anticip
+trait so difficulty tiers gate the geometry, not just the reflexes.
+
+## The math (implemented equations)
+
+1. PURSUIT INTERCEPTION (_intercept_point): target P, velocity v; pursuer O,
+   speed s. Meet time t solves |P + vt - O| = st:
+     (v.v - s^2)t^2 + 2(d.v)t + d.d = 0,  d = P - O
+   Faster pursuer => one positive root; run to P + vt (t capped 1.6s since
+   kids change direction). Numerically verified: |intercept - O| = s*t.
+   Equal-speed dead-flee has no root => t=0, degrades to plain chase.
+
+2. POTENTIAL-FIELD CARRIER ROUTING (_evasive_home_point):
+     steer = normalize( home_dir + SUM_i (away_i/|away_i|) * k/|away_i|^2 ), k=140
+   Inverse-square repulsion from enemies within 20u; waypoint 18u along steer.
+   At d=10u an enemy pushes ~1.4x the goal pull (real swerve); at 20u ~0.35x
+   (gentle drift). Composes with the sine-weave that dodges the chaser behind.
+
+3. WEAK-SIDE LANE SELECTION (_weak_side_lane): per candidate lane x_L,
+     cost(x_L) = 0.012|x_L - x_base| + SUM_ahead 1/(1 + 0.1|x_e - x_L|)
+   Only enemies ahead of the crossing count; stickiness term prevents
+   zig-zag; final lane = lerp(base, argmin, 0.65). Raids flow to the side
+   the defense left open.
+
+## Risk model (the balancing framework)
+
+Every job score has the same shape: **value x urgency / risk**. When behavior
+feels dumb, identify which term is missing or mis-weighted - do not nudge
+random constants. Current terms:
+
+- RESCUE: value = teammate back (115 base, revive trait, close-kick),
+  urgency = team crisis (down ratio), risk = _danger_at(body) enemy pressure (30u, includes belief threats) - each
+  enemy close to the downed kid discounts the score, scaled by the rescuer's
+  bravery. A guarded body is a trap, not a job; kids should not feed. Crisis
+  urgency competes with danger, so in a true emergency a brave kid will still
+  risk a guarded grab - the schoolyard-heroics moment we want.
+- CHASE/ENGAGE: value = stopping a threat, urgency = carrier/intrusion,
+  risk = implicit (their-turf rules).
+- RAID: value = points, urgency = play-caller bias, risk = opening-phase
+  suppression for holders.
+
+Tuning rule: bots cowardly -> raise value/urgency; suicidal -> raise risk;
+uniform -> widen the personality spread on the relevant trait.
+
 ## 5. What bots do NOT do
 
 - No crouch: there's no crouch-walk clip, so moving-while-crouched looks static.

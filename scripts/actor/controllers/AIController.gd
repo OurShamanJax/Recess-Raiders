@@ -112,7 +112,7 @@ func build_intent(delta: float) -> Intent:
 		_seek(icept, true)
 		# jump when the ball is nearly on us and at jumpable height
 		var d_ic: float = Vector3(icept.x - a.global_position.x, 0, icept.z - a.global_position.z).length()
-		if d_ic < 3.5 and randf() < Config.ai_val("react"):
+		if d_ic < 3.5 and randf() < Config.ai_val_for(actor.team, "react"):
 			intent.want_jump = true
 		return intent
 
@@ -204,13 +204,20 @@ func _score_current_job() -> float:
 			var dp: Vector3 = _job_target.global_position
 			var dist3: float = a.global_position.distance_to(dp)
 			var prox3: float = 1.0 - 0.5 * clampf(dist3 / Config.RESCUE_MAX_DIST, 0.0, 1.0)
-			return 75.0 * prox3 * Config.ai_val("revive") * _team_play
+			return 75.0 * prox3 * Config.ai_val_for(actor.team, "revive") * _team_play
 		Job.SUPPORT:
 			if _job_target == null or not is_instance_valid(_job_target) or not _job_target.has_target():
 				return -INF
 			var dist4: float = a.global_position.distance_to(_job_target.global_position)
 			var prox4: float = 1.0 - 0.6 * clampf(dist4 / FIELD_DIAG, 0.0, 1.0)
-			return 65.0 * prox4 * _team_play * (0.5 + raid_bias)
+			# CROWD PENALTY: each teammate already escorting this carrier halves
+			# the value of joining — one or two escorts help, five clumping don't.
+			var escorts := 0
+			for tm in GameState.actors():
+				if is_instance_valid(tm) and tm != a and tm.team == a.team and not tm.is_tagged() \
+						and tm.global_position.distance_to(_job_target.global_position) < 12.0:
+					escorts += 1
+			return 65.0 * prox4 * _team_play * (0.5 + raid_bias) / (1.0 + 1.0 * float(escorts))
 		Job.REST:
 			if a.stamina >= Config.GASSED_STAMINA:
 				return -INF
@@ -315,7 +322,7 @@ func _choose_job() -> void:
 		var proxx: float = 1.0 - clampf(distx / 22.0, 0.0, 1.0)
 		var urg2 := 1.8 if e2.has_target() else 1.0   # chase carriers hard
 		var claim_penx := 0.5 if _is_claimed_by_other(e2) else 1.0
-		var scorex: float = 52.0 * proxx * urg2 * claim_penx * _brave * Config.ai_val("aggro")
+		var scorex: float = 52.0 * proxx * urg2 * claim_penx * _brave * Config.ai_val_for(actor.team, "aggro")
 		if scorex > best_score:
 			best_score = scorex; best_job = Job.CHASE; best_target = e2; best_point = epx
 
@@ -338,13 +345,18 @@ func _choose_job() -> void:
 		# (walking past a teammate begging for a revive felt terrible). Base bumped
 		# and a proximity kicker: a bot standing right next to a body almost always
 		# stops to help.
-		var revive_w: float = maxf(0.7, Config.ai_val("revive"))
+		var revive_w: float = maxf(0.7, Config.ai_val_for(actor.team, "revive"))
 		# standing next to a body => overwhelming urge to help (2x within 16u).
 		var close_kick: float = 2.0 if dist3 < 16.0 else 1.0
 		# TEAM CRISIS: when lots of us are down, survivors drop everything and
 		# pick people up — this is what stops the opening-clash steamroll.
 		var crisis: float = 1.0 + 1.4 * _team_down_ratio()
-		var score3: float = 115.0 * prox3 * revive_w * claim_pen3 * _team_play * close_kick * crisis
+		# RISK: enemies guarding the body make this a trap, not a rescue. Brave
+		# kids discount danger less. Crisis urgency competes with this divisor,
+		# so desperate late-game saves still happen - by the brave ones.
+		var body_danger: float = _danger_at(dp)
+		var risk_div: float = 1.0 + body_danger * clampf(1.7 - 0.7 * _brave, 0.5, 1.7)
+		var score3: float = 115.0 * prox3 * revive_w * claim_pen3 * _team_play * close_kick * crisis / risk_div
 		if score3 > best_score:
 			best_score = score3; best_job = Job.RESCUE; best_target = d; best_point = dp
 
@@ -392,6 +404,13 @@ func _choose_job() -> void:
 		best_score = line_score; best_job = Job.HOLD_LINE; best_target = null
 		best_point = _border_lane_point()
 
+	# HYSTERESIS: switching jobs requires beating the incumbent by a clear
+	# margin — near-tie options flip-flopped every re-think, producing the
+	# charge/retreat/charge dithering in place. Incumbency decays so a stale
+	# job loses its grip within a couple of re-thinks.
+	if best_job != _job and best_score < _current_score * 1.18:
+		_current_score *= 0.85
+		return
 	_job = best_job
 	_job_target = best_target
 	_job_point = best_point
@@ -412,7 +431,7 @@ func _execute_job() -> void:
 					# ball in flight: lead the target. Ball is a RigidBody3D, so its
 					# speed is linear_velocity (not velocity, which is CharacterBody3D).
 					if "linear_velocity" in _job_target:
-						tp += _job_target.linear_velocity * (0.2 * Config.ai_val("anticip"))
+						tp += _job_target.linear_velocity * (0.2 * Config.ai_val_for(actor.team, "anticip"))
 				_seek(tp, true)
 			else:
 				_commit = 0.0
@@ -436,7 +455,7 @@ func _execute_job() -> void:
 				_commit = 0.0
 		Job.RESCUE:
 			if _job_target != null and is_instance_valid(_job_target) and _job_target.is_tagged():
-				_seek(_job_target.global_position, true)
+				_seek(_intercept_point(_job_target), true)
 			else:
 				_commit = 0.0
 		Job.SUPPORT:
@@ -444,7 +463,14 @@ func _execute_job() -> void:
 				# flank slightly ahead of the carrier toward goal
 				var goal := Config.goal_pos(actor.team)
 				var ahead: Vector3 = _job_target.global_position.lerp(goal, 0.35)
-				_seek(ahead, actor.stamina > 20.0)
+				# FORMATION SPREAD: fan escorts out laterally by bot id so they
+				# screen the carrier's flanks instead of stacking on one point.
+				var run_dir: Vector3 = (goal - _job_target.global_position)
+				run_dir.y = 0.0
+				run_dir = run_dir.normalized()
+				var side_f: float = -1.0 if (actor.id % 2) == 0 else 1.0
+				var lat: Vector3 = Vector3(-run_dir.z, 0.0, run_dir.x) * side_f * (6.0 + 4.0 * float(actor.id % 3))
+				_seek(ahead + lat, actor.stamina > 20.0)
 			else:
 				_commit = 0.0
 		Job.REST:
@@ -462,17 +488,37 @@ func _execute_job() -> void:
 			# react: if a threat enters my area, intercept; else hold lane
 			var threat := _nearest_threat_near(_job_point, 42.0)
 			if threat != null:
-				_seek(threat.global_position, true)
+				_seek(_intercept_point(threat), true)
 			else:
 				_seek(_lane_travel(_job_point), false)
 		Job.HOLD_LINE:
 			var threat2 := _nearest_threat_near(actor.global_position, 36.0)
 			if threat2 != null and Config.intruding_into(actor.team, threat2.global_position.z):
-				_seek(threat2.global_position, true)
+				_seek(_intercept_point(threat2), true)
 			else:
 				_seek(_job_point, false)
 		_:
 			_seek(_border_lane_point(), false)
+
+## POTENTIAL-FIELD ROUTING for carriers: goal attraction + inverse-square
+## repulsion from each enemy ahead:  steer = normalize(home_dir + SUM(away_i * k/d_i^2)).
+## The weave (above) dodges the chaser BEHIND; this arcs around danger AHEAD.
+## Repulsion fades with distance so attraction always wins near the goal.
+func _evasive_home_point(goal: Vector3) -> Vector3:
+	var a := actor
+	var repel := Vector3.ZERO
+	for e in _nearby_enemies(20.0):
+		var away: Vector3 = a.global_position - e.global_position
+		away.y = 0.0
+		var dd: float = maxf(away.length(), 2.0)
+		repel += (away / dd) * (140.0 / (dd * dd))
+	if repel.length() < 0.05:
+		return goal
+	var home_dir: Vector3 = (goal - a.global_position)
+	home_dir.y = 0.0
+	home_dir = home_dir.normalized()
+	var steer: Vector3 = (home_dir + repel).normalized()
+	return a.global_position + steer * 18.0
 
 func _behave_carry_home(delta: float) -> void:
 	var a := actor
@@ -526,7 +572,7 @@ func _behave_carry_home(delta: float) -> void:
 			var juke := perp * side * urgency * 0.8
 			_seek(a.global_position + (to_goal + juke) * 20.0, a.stamina > 10.0)
 			return
-	_seek(goal, a.stamina > 12.0)
+	_seek(_evasive_home_point(goal), a.stamina > 12.0)
 
 ## The nearest enemy who could tag this carrier (the active chaser), or null.
 func _nearest_chaser() -> Node:
@@ -696,6 +742,40 @@ func _grabbable_targets() -> Array:
 
 ## Any perceived enemies within `radius`, anywhere on the field (used to break the
 ## border stalemate — bots engage foes in the contested middle, not just our half).
+## PURSUIT INTERCEPTION: chase where the target WILL be, not where they are.
+## Target at P with velocity v; we run at speed s from O. Smallest t >= 0 with
+## |P + v*t - O| = s*t  ->  quadratic  (v.v - s^2)t^2 + 2(d.v)t + d.d = 0,
+## d = P - O. Faster pursuer => a<0, roots straddle 0, take the positive one.
+## Cutting the corner is what turns an endless tail-chase into a tag.
+func _intercept_point(target: Node) -> Vector3:
+	var d: Vector3 = target.global_position - actor.global_position
+	d.y = 0.0
+	var v: Vector3 = target.velocity if ("velocity" in target) else Vector3.ZERO
+	v.y = 0.0
+	var s: float = Config.SPRINT_SPEED
+	var qa: float = v.dot(v) - s * s
+	var qb: float = 2.0 * d.dot(v)
+	var qc: float = d.dot(d)
+	var t := 0.0
+	if absf(qa) < 0.001:
+		if absf(qb) > 0.001:
+			t = maxf(0.0, -qc / qb)
+	else:
+		var disc: float = qb * qb - 4.0 * qa * qc
+		if disc >= 0.0:
+			var r: float = sqrt(disc)
+			var t1: float = (-qb - r) / (2.0 * qa)
+			var t2: float = (-qb + r) / (2.0 * qa)
+			var tmin: float = minf(t1, t2)
+			t = tmin if tmin > 0.0 else maxf(t1, t2)
+			t = maxf(0.0, t)
+	t = clampf(t, 0.0, 1.6)   # cap extrapolation: targets change direction
+	# ANTICIPATION GATE: only sharp bots run the full solved intercept; casual
+	# bots predict a fraction of it (t *= anticip). This keeps the difficulty
+	# setting meaningful — pro geometry with casual traits crushed human players.
+	t *= clampf(Config.ai_val_for(actor.team, "anticip"), 0.0, 1.0)
+	return target.global_position + v * t
+
 func _nearby_enemies(radius: float) -> Array:
 	var out: Array = []
 	var here: Vector3 = actor.global_position
@@ -796,6 +876,27 @@ func _flanked_lane_x(span: float) -> float:
 	var shifted := base + float(flank) * 22.0
 	return clampf(shifted, -Config.FIELD_X + 5.0, Config.FIELD_X - 5.0)
 
+## WEAK-SIDE SELECTION: score candidate lanes by enemy presence AHEAD (softly,
+## cost_i = SUM 1/(1 + 0.1*|x_e - lane_x|)) and drift toward the emptiest —
+## the raid naturally flows around the defense to the side they left open.
+## Stickiness term avoids zig-zagging between near-equal lanes.
+func _weak_side_lane(base_lx: float) -> float:
+	var fwd: float = -1.0 if actor.team == "blue" else 1.0
+	var best_lx := base_lx
+	var best_cost := INF
+	for lx in [-40.0, -20.0, 0.0, 20.0, 40.0]:
+		var cost: float = absf(lx - base_lx) * 0.012
+		for e in GameState.actors():
+			if not is_instance_valid(e) or e.team == actor.team or e.is_tagged():
+				continue
+			if (e.global_position.z - actor.global_position.z) * fwd < 0.0:
+				continue   # behind us — irrelevant to the crossing ahead
+			cost += 1.0 / (1.0 + absf(e.global_position.x - lx) * 0.1)
+		if cost < best_cost:
+			best_cost = cost
+			best_lx = lx
+	return lerpf(base_lx, best_lx, 0.65)
+
 ## LANE-COLUMN TRAVEL (AI_DESIGN.md §2): while far from a travel objective (in Z),
 ## head up the bot's own lane column instead of diagonally straight at the point —
 ## raids arrive as a broad front, crossings spread over multiple border gaps, and
@@ -804,7 +905,7 @@ func _lane_travel(dest: Vector3) -> Vector3:
 	var dz: float = dest.z - actor.global_position.z
 	if absf(dz) < 30.0:
 		return dest
-	var lx := clampf(_flanked_lane_x(60.0) + _lane_wander, -Config.FIELD_X + 5.0, Config.FIELD_X - 5.0)
+	var lx := clampf(_weak_side_lane(_flanked_lane_x(60.0)) + _lane_wander, -Config.FIELD_X + 5.0, Config.FIELD_X - 5.0)
 	return Vector3(lx, 0, actor.global_position.z + signf(dz) * 26.0)
 
 ## JUMP-INTERCEPT detection: returns the point to contest an enemy ball in flight,

@@ -185,3 +185,14 @@ const NAMES_F := ["Mia", "Ava", "Zoe", "Ivy", "Lila", "Nora", "Remi", "Tess", "C
 ## Bracket-access helper so callers never do dot-access on a Dictionary.
 func ai_val(key: String) -> float:
 	return DIFFICULTY[ai_difficulty][key]
+
+## Team-aware trait lookup. THE FAIRNESS RULE: the player's own teammates
+## never play below the 'skilled' tier in a REAL match. The human replaces a
+## bot, so a team of 9 casual allies + 1 human vs 10 bots reads as a hidden
+## enemy advantage (it is one). Enemies always use the selected difficulty.
+## Gated on clock_running so the menu demo stays perfectly symmetric.
+func ai_val_for(team: String, key: String) -> float:
+	var base: float = DIFFICULTY[ai_difficulty][key]
+	if GameState.clock_running and team == GameState.user_team:
+		return maxf(base, DIFFICULTY["skilled"][key])
+	return base

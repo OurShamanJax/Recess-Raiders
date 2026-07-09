@@ -811,6 +811,20 @@ func _on_match_won(team: String) -> void:
 	detail += "  Teammates saved: %d\n" % int(s.get("saves", 0))
 	detail += "  Times tagged:    %d" % int(s.get("outs", 0))
 	$EndScreen/Panel/VBox/Detail.text = detail
+	# FULL RESULTS TABLE: both teams ranked with headshots — the same data and
+	# builder as the Tab scoreboard, so the end screen tells the whole story.
+	var vb := $EndScreen/Panel/VBox
+	if vb.has_node("Results"):
+		vb.get_node("Results").queue_free()
+	var results := HBoxContainer.new()
+	results.name = "Results"
+	results.add_theme_constant_override("separation", 24)
+	vb.add_child(results)
+	results.add_child(_team_column("blue", 22, 13))
+	results.add_child(_team_column("red", 22, 13))
+	# keep the buttons at the bottom, under the table
+	vb.move_child(results, $EndScreen/Panel/VBox/Restart.get_index())
+	$EndScreen/Panel.custom_minimum_size = Vector2(880, 0)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _on_main_menu_pressed() -> void:
@@ -867,41 +881,48 @@ func _fill_leaderboard() -> void:
 	for c in _lb_body.get_children():
 		c.queue_free()
 	for tm in ["blue", "red"]:
-		var col := VBoxContainer.new()
-		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_lb_body.add_child(col)
-		var hdr := Label.new()
-		hdr.text = tm.to_upper() + "   pts / tags / saves / ins / outs"
-		hdr.add_theme_color_override("font_color", Color(0.45, 0.7, 1.0) if tm == "blue" else Color(1.0, 0.5, 0.45))
-		col.add_child(hdr)
-		var rows: Array = []
-		for key in GameState.stats.keys():
-			var s: Dictionary = GameState.stats[key]
-			if s.team != tm:
-				continue
-			var impact: int = s.pts * 5 + s.tags * 2 + s.saves * 2 - s.outs
-			rows.append([impact, key, s])
-		rows.sort_custom(func(x, y): return x[0] > y[0])
-		var rank := 1
-		for r in rows:
-			var s2: Dictionary = r[2]
-			if rank > 10:
-				break
-			var hrow := HBoxContainer.new()
-			var icon := TextureRect.new()
-			icon.custom_minimum_size = Vector2(26, 26)
-			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			var tex = GameState.headshots.get(String(s2.get("char", "")), null)
-			if tex != null:
-				icon.texture = tex
-			hrow.add_child(icon)
-			var who: String = String(s2.get("label", r[1])) + (" (you)" if s2.user else "")
-			var l := Label.new()
-			l.text = "%2d. %-14s %d / %d / %d / %d / %d" % [rank, who, s2.pts, s2.tags, s2.saves, s2.ins, s2.outs]
-			l.add_theme_font_size_override("font_size", 15)
-			if s2.user:
-				l.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
-			hrow.add_child(l)
-			col.add_child(hrow)
-			rank += 1
+		_lb_body.add_child(_team_column(tm, 26, 15))
+
+## One ranked team column (shared by the Tab scoreboard AND the win/lose
+## results table): headshot icon + name + pts/tags/saves/ins/outs, ranked by
+## impact = pts*5 + tags*2 + saves*2 - outs, top 10, player row highlighted.
+func _team_column(tm: String, icon_px: int, fnt: int) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var hdr := Label.new()
+	hdr.text = tm.to_upper() + "   pts / tags / saves / ins / outs"
+	hdr.add_theme_font_size_override("font_size", fnt)
+	hdr.add_theme_color_override("font_color", Color(0.45, 0.7, 1.0) if tm == "blue" else Color(1.0, 0.5, 0.45))
+	col.add_child(hdr)
+	var rows: Array = []
+	for key in GameState.stats.keys():
+		var s: Dictionary = GameState.stats[key]
+		if s.team != tm:
+			continue
+		var impact: int = s.pts * 5 + s.tags * 2 + s.saves * 2 - s.outs
+		rows.append([impact, key, s])
+	rows.sort_custom(func(x, y): return x[0] > y[0])
+	var rank := 1
+	for r in rows:
+		if rank > 10:
+			break
+		var s2: Dictionary = r[2]
+		var hrow := HBoxContainer.new()
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(icon_px, icon_px)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var tex = GameState.headshots.get(String(s2.get("char", "")), null)
+		if tex != null:
+			icon.texture = tex
+		hrow.add_child(icon)
+		var who: String = String(s2.get("label", r[1])) + (" (you)" if s2.user else "")
+		var l := Label.new()
+		l.text = "%2d. %-14s %d / %d / %d / %d / %d" % [rank, who, s2.pts, s2.tags, s2.saves, s2.ins, s2.outs]
+		l.add_theme_font_size_override("font_size", fnt)
+		if s2.user:
+			l.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
+		hrow.add_child(l)
+		col.add_child(hrow)
+		rank += 1
+	return col

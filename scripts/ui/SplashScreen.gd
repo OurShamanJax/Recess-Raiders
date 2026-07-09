@@ -19,6 +19,7 @@ var _title_font_size := 84
 var _root: Control            # holds all splash visuals, faded out at the end
 var _letters: Array = []      # all letter labels, for cleanup
 var _done := false
+var _tweens: Array = []   # every splash tween, killed on skip so callbacks can't fire on freed nodes
 # title layout, stashed in _run() so _finish() can COMPLETE the title instantly
 # if the player skips mid-sequence (otherwise only the fallen R's hand off).
 var _full_text := ""
@@ -140,6 +141,7 @@ func _extend_tail_xs(full: String, xs: Array, from_i: int, to_i: int, ground_y: 
 		var l := _make_letter(ch, Vector2(origin_x, ground_y))
 		l.modulate.a = 0.0
 		var t := create_tween()
+		_tweens.append(t)
 		t.tween_interval(0.11 * float(step))
 		t.set_parallel(true)
 		t.tween_property(l, "position:x", final_x, 0.5).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
@@ -168,6 +170,7 @@ func _drop_letter(letter: Label, ground_y: float, delay: float) -> void:
 	var fall_time := 0.85            # quicker, weightier plunge (was a floaty 1.5)
 	var base_x := letter.position.x
 	var t := create_tween()
+	_tweens.append(t)
 	t.tween_interval(delay)
 	# strong gravity-style acceleration: EXPO ease-in reads as real heavy falling
 	t.tween_property(letter, "position:y", ground_y + 12.0, fall_time).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_EXPO)
@@ -180,13 +183,19 @@ func _drop_letter(letter: Label, ground_y: float, delay: float) -> void:
 	# a SMALL air wobble — just enough surface-area drift to not be robotic, but not
 	# leaf-like. Tight amplitude, resolves well before impact.
 	var sway := create_tween()
+	_tweens.append(sway)
 	sway.tween_interval(delay)
 	sway.tween_property(letter, "position:x", base_x - 7.0, fall_time * 0.4).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	sway.tween_property(letter, "position:x", base_x, fall_time * 0.6).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 
 ## A quick squash-and-recover scale jiggle to sell the impact.
 func _impact_squash(letter: Label) -> void:
+	# the skip path frees letters mid-flight; a queued tween callback can then
+	# hand us a freed/null node — just ignore it, the rebuilt title is final
+	if letter == null or not is_instance_valid(letter):
+		return
 	var t := create_tween()
+	_tweens.append(t)
 	letter.scale = Vector2(1.28, 0.72)
 	t.tween_property(letter, "scale", Vector2(0.9, 1.12), 0.12).set_trans(Tween.TRANS_SINE)
 	t.tween_property(letter, "scale", Vector2(1.0, 1.0), 0.14).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
@@ -214,6 +223,7 @@ func _grow_underline(cx: float, y: float, width: float) -> void:
 	_letters.append(trim)
 	_letters.append(line)
 	var t := create_tween()
+	_tweens.append(t)
 	t.set_parallel(true)
 	t.tween_property(trim, "scale:x", 1.0, 0.85).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	t.tween_property(line, "scale:x", 1.0, 0.85).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
@@ -246,6 +256,7 @@ func _finish() -> void:
 	var dy := menu_title_topleft_y - splash_topleft_y
 
 	var t := create_tween()
+	_tweens.append(t)
 	t.set_parallel(true)
 	t.tween_property(_root, "scale", Vector2(scale_ratio, scale_ratio), 0.75).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
 	t.tween_property(_root, "position:y", dy, 0.75).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
@@ -257,6 +268,12 @@ func _finish() -> void:
 	var menu := get_tree().get_first_node_in_group("menu_overlay")
 	if menu != null and menu.has_method("adopt_splash_title"):
 		var keep := _root
+		# stash the layout this title was built for, so the menu can RE-SEAT it
+		# at the correct spot after matches / window resizes (the tween-end
+		# transform goes stale — that was the mispositioned-title bug)
+		keep.set_meta("splash_vw", vw)
+		keep.set_meta("splash_vh", vh)
+		keep.set_meta("splash_fs", float(_title_font_size))
 		remove_child(keep)
 		menu.adopt_splash_title(keep)
 		_root = null
@@ -276,9 +293,15 @@ func _complete_title_instantly() -> void:
 		return
 	if _letter_xs.is_empty():
 		_compute_layout()   # skipped before _run() measured — do it now
-	for n in _letters:
-		if is_instance_valid(n):
-			n.queue_free()
+	# wipe EVERYTHING under _root, not just tracked refs — after a match the
+	# handoff can orphan letter nodes (lost refs), and rebuilding on top of
+	# them doubled the title on menu return.
+	for tw in _tweens:
+		if tw != null and tw.is_valid():
+			tw.kill()
+	_tweens.clear()
+	for n in _root.get_children():
+		n.queue_free()
 	_letters.clear()
 	for i in range(_full_text.length()):
 		if _full_text[i] == " ":

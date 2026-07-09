@@ -330,6 +330,62 @@ with every battery — it catches the gdparse blind spot. RULES REINFORCED: guar
 symbol being added, not a lookalike; every removal needs a caller-grep for FUNCTION NAMES not just field
 patterns; asserts must verify the invariant (exactly-one declaration), not just presence.
 
+**Polish four-pack (cones/title-seat/end-screen table/docs).** (1) BORDER cones were sinking 1.3u (same
+centre-origin cause as GoalCone) — spawn at GoalCone.REST_Y now. (2) Adopted-title POSITION: the handoff
+tween's end transform was boot-window-specific; splash now set_meta(splash_vw/vh/fs) on the handed node and
+MenuOverlay._seat_adopted_title() re-pins it (pivot=local top-centre, pos=current menu spot) every LANDING
+show — idempotent + resize-proof. (3) WIN/LOSE screen now shows the FULL ranked results: _team_column(tm,
+icon_px,fnt) extracted as the shared builder (Tab board uses 26/15, end screen 22/13), two columns with
+headshots inserted above the buttons, panel widened to 880. (4) docs refreshed.
+
+**Double title ACTUAL fix (ownership rule).** Previous fix was a no-op: SplashScreen queue_free()s itself
+after handing its letters to MenuOverlay (adopt_splash_title), so its returned_to_menu hook never ran —
+removed as dead code. REAL BUG: _show_step(LANDING) set _title, _title_underline AND _adopted_title all
+visible; first boot only looked right because adoption hides the own-title AFTER the last _show_step, and
+the post-match _show_step(LANDING) re-showed everything -> two titles + two underlines. FIX: ownership
+rule in _show_step — own Label/underline visible only when NO valid _adopted_title exists. Splash tween-
+kill + validity guards from the skip-crash fix remain (still needed pre-handoff).
+
+**Splash skip crash (freed-lambda) fix.** Full-root wipe frees letters mid-animation; queued tween
+callbacks fired with freed captures (_impact_squash(null) -> .scale on Nil). FIXES: every splash tween
+registered in _tweens and killed before the wipe; _impact_squash validity-guards its letter. RULES: code
+that frees animated nodes must kill their tweens first; tween callbacks taking nodes must guard with
+is_instance_valid. PIPELINE LESSON: a blanket str.replace matched a deeper-indented site and shipped a
+parse-broken zip because the package step ran despite battery=1 fail — the battery result must GATE
+packaging (assert bad==0), never just report.
+
+**Post-match polish trio.** (1) DOUBLE TITLE on menu return after win/lose: splash handoff could orphan
+letter nodes (refs lost from _letters), and rebuilding stacked a second title. _complete_title_instantly
+now wipes ALL _root children (not just tracked refs) and SplashScreen rebuilds once on returned_to_menu.
+(2) ESCORT CLUMPING around own carrier: SUPPORT score now divided by (1 + escorts-already-within-12u)
+so 1-2 escorts max, and execute fans them laterally by bot id (6-14u perpendicular) to screen the flanks
+instead of stacking on carrier.lerp(goal,0.35). (3) CHARGE/RETREAT DITHERING: job-switch HYSTERESIS —
+a new job must beat the incumbent's _current_score by 18% (incumbency decays 15%/re-think) so near-tie
+options stop flip-flopping every 1.5s.
+
+**8-of-10-losses fix (the 'hidden enemy advantage').** Audit found NO team-string asymmetry; roles are dead
+metadata (unused). ROOT CAUSE: enemy fields 10 bots vs user's 9+human, and the new pursuit math wasn't
+difficulty-gated — every CASUAL bot ran pro interception geometry, so bot skill exceeded human skill and
+the extra bot became a systematic advantage. FIXES: (1) _intercept_point scales t by the anticip trait
+(casual predicts 40%, ruthless 100%) so difficulty matters again; (2) Config.ai_val_for(team,key) — ALLY
+COMPETENCE FLOOR: the player's teammates never play below 'skilled' tier in real matches (clock_running-
+gated so the demo stays symmetric); enemies use the selected difficulty. AIController's 5 trait reads are
+team-aware now; Actor/BallManager aim reads stay global (symmetric throw error). Expect ~even matches at
+casual; raise ai_difficulty for challenge.
+
+**AI math upgrade (interception / potential field / weak-side).** Three equations in AIController, all
+documented in AI_DESIGN.md 'The math': (1) _intercept_point quadratic pursuit — CHASE/DEFEND/HOLD now seek
+the SOLVED meet point (numerically verified, t capped 1.6s, equal-speed degrades to plain chase);
+(2) _evasive_home_point inverse-square repulsion field (k=140, 20u radius, 18u waypoint) so carriers arc
+around danger ahead — composes with the existing chaser-weave; (3) _weak_side_lane density scoring in
+_lane_travel so raids flank the open side (stickiness 0.012, lerp 0.65). Tunables all named in doc.
+
+**Danger-priced rescue (no more suicide revives).** RESCUE now divides by risk: the PRE-EXISTING _danger_at(body) (30u radius, dedup, includes shouted-threat beliefs at half weight — found via a duplicate-'danger' same-scope crash; my redundant _danger_near helper was deleted)
+sums enemy pressure around the downed kid; risk_div = 1 + danger*clampf(1.7-0.7*_brave). Guarded bodies
+score low (bots stop feeding); crisis urgency still competes so brave kids attempt desperate saves late.
+AI_DESIGN.md gained a Risk-model section: every score = value x urgency / risk - the balancing framework
+the user asked for. Tunables: _danger_at 30u radius, 1.7/0.7 bravery scaling. BATTERY UPGRADED: dup-var check is now SCOPE-AWARE (class + function-local shadowing, which Godot forbids but gdparse accepts; validated against 9 legal sibling-branch redeclares that must NOT flag).
+
 **Rescue cooldown-timing tweak + AUDIT #3 (all green).** NPCs no longer sprint to a freshly-tagged body and
 cluster: RESCUE skips a downed teammate unless downed_time + travel ETA (dist/22, ~sprint w/ slack) reaches
 REVIVE_MIN_DOWNED-0.4 — they arrive roughly as the revive unlocks. skip-engage similarly ignores friends still

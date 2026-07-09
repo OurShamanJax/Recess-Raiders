@@ -284,6 +284,27 @@ func _make_title_underline() -> Control:
 ## the reserved title space. Buttons/subtitle then fade in beneath it.
 var _adopted_title: Control = null
 
+## Pin the adopted splash title to the canonical menu-title spot using the
+## CURRENT viewport size. The handoff tween's end transform was computed for
+## the boot-time window; after a match (or a resize) it can be wrong — this
+## recomputes it idempotently every time the landing step shows.
+func _seat_adopted_title() -> void:
+	if _adopted_title == null or not is_instance_valid(_adopted_title):
+		return
+	if not _adopted_title.has_meta("splash_vw"):
+		return
+	var mvw: float = _adopted_title.get_meta("splash_vw")
+	var mvh: float = _adopted_title.get_meta("splash_vh")
+	var fs: float = _adopted_title.get_meta("splash_fs")
+	var s: float = 52.0 / maxf(fs, 1.0)
+	var vw: float = size.x if size.x > 0 else 1280.0
+	var vh: float = size.y if size.y > 0 else 720.0
+	# pivot = the title's top-centre in the node's LOCAL (splash-time) space;
+	# position places that pivot at the menu-title spot in CURRENT space.
+	_adopted_title.pivot_offset = Vector2(mvw * 0.5, mvh * 0.42)
+	_adopted_title.scale = Vector2(s, s)
+	_adopted_title.position = Vector2(vw * 0.5 - mvw * 0.5, (vh * 0.5 - 200.0) - mvh * 0.42)
+
 func adopt_splash_title(title_node: Control) -> void:
 	_adopted_title = title_node
 	add_child(title_node)
@@ -333,17 +354,23 @@ func _show_step(step: int) -> void:
 	# in _model_layer, so hide the centered title/subtitle/options/back stack to
 	# avoid overlap. All other steps use that centered stack normally.
 	var use_root := step != Step.MODEL
-	_title.visible = use_root
+	# THE OWNERSHIP RULE: if the splash handed us its title letters, THEY are
+	# the title — our own Label + underline stay hidden forever. Re-showing
+	# them here (post-match return runs _show_step again) doubled the title.
+	var have_adopted: bool = _adopted_title != null and is_instance_valid(_adopted_title)
+	_title.visible = use_root and not have_adopted
 	# the adopted splash-title letters are a SEPARATE node from _title, so they need
 	# their own visibility gate — otherwise "Recess Raiders" shows behind the
 	# character-select box on the MODEL step.
 	if _adopted_title != null:
 		_adopted_title.visible = (step == Step.LANDING)
+		if step == Step.LANDING:
+			_seat_adopted_title()
 	# reset transforms/opacity to defaults; play_intro (if it runs) re-animates them
 	_title.modulate.a = 1.0
 	_title.scale = Vector2(1, 1)
 	if _title_underline != null:
-		_title_underline.visible = use_root and step == Step.LANDING
+		_title_underline.visible = use_root and step == Step.LANDING and not have_adopted
 		_title_underline.modulate.a = 1.0
 	_subtitle.visible = use_root
 	_subtitle.modulate.a = 1.0
